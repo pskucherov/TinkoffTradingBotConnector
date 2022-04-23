@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "tinkoff-sdk-grpc-js": "^0.1.0"
+  }
+}
