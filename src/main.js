@@ -30,12 +30,14 @@ app.get('*/gettokens', async (req, res) => {
 app.get('*/deltoken', async (req, res) => {
     try {
         delToken(req.query.token);
+        return res
+            .json({});
     } catch (error) {
         logger(logsServerFileName, error, res);
     }
 });
 
-app.get('/addtoken', async (req, res) => {
+app.get('*/addtoken', async (req, res) => {
     let userInfo;
     let sandboxAccounts;
     let isSandbox = false;
