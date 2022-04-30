@@ -6,7 +6,7 @@ try {
 
     const { app } = require('./modules/server');
     const { tokenRequest, getSelectedToken } = require('./modules/tokens');
-    const { getFutures } = require('./modules/getHeadsInstruments');
+    const { getFutures, getShares } = require('./modules/getHeadsInstruments');
 
     const token = getSelectedToken() || config.defaultToken;
 
@@ -34,7 +34,12 @@ try {
     (async () => {
         if (sdk) {
             const futures = await getFutures(sdk);
+
             futures && futures.updateDate && logger(0, 'Дата обновления списка фьючерсов: ' + futures.updateDate);
+
+            const shares = await getShares(sdk);
+
+            shares && shares.updateDate && logger(0, 'Дата обновления списка акций: ' + shares.updateDate);
         } else {
             logger(0, 'Укажите token для получения фьючерсов и акций.');
         }
