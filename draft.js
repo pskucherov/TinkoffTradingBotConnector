@@ -17,6 +17,7 @@ const sdk = createSdk('token');
     const futures = await sdk.instruments.futures({
         instrumentStatus: sdk.InstrumentStatus.INSTRUMENT_STATUS_BASE,
     });
+
     const futureByFIGI = await sdk.instruments.futureBy({
         idType: sdk.InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI,
         id: 'FUTSI0623000',
