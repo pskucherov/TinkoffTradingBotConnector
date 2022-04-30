@@ -4,7 +4,7 @@ const { createSdk } = require('tinkoff-sdk-grpc-js');
 
 const { app } = require('./modules/server');
 const { logger } = require('./modules/logger');
-const { saveToken, delToken, getTokens, selectToken } = require('./modules/tokens');
+const { tokenRequest } = require('./modules/tokens');
 
 const options = { year: 'numeric', month: 'numeric', day: 'numeric' };
 
@@ -18,76 +18,8 @@ app.get('*/check', (req, res) => {
         .json({ status: true });
 });
 
-app.get('*/gettokens', async (req, res) => {
-    try {
-        return res
-            .json(getTokens());
-    } catch (error) {
-        logger(logsServerFileName, error, res);
-    }
-});
-
-app.get('*/deltoken', async (req, res) => {
-    try {
-        delToken(req.query.token);
-
-        return res
-            .json({});
-    } catch (error) {
-        logger(logsServerFileName, error, res);
-    }
-});
-
-app.get('*/selecttoken', async (req, res) => {
-    try {
-        selectToken(req.query.token);
-
-        return res
-            .json({});
-    } catch (error) {
-        logger(logsServerFileName, error, res);
-    }
-});
-
-app.get('*/addtoken', async (req, res) => {
-    let userInfo;
-    let sandboxAccounts;
-    let isSandbox = false;
-    let isProduction = false;
-
-    try {
-        const sdk = createSdk(req.query.token, 'opexviewer.addtoken');
-
-        // Сделать запрос к пользователю
-        sandboxAccounts = Boolean(await sdk.sandbox.getSandboxAccounts({}));
-
-        // Сделать запрос за пользовательской информацией.
-        userInfo = Boolean(await sdk.users.getInfo({}));
-
-        // Ошибку не обрабатываем, т.к. в данном случае это ок.
-        // В идеале в ответе иметь это сендбокс или нет.
-    } catch (e) {}
-
-    if (sandboxAccounts && userInfo) {
-        isProduction = true;
-    } else if (sandboxAccounts) {
-        isSandbox = true;
-    } else {
-        return res
-            .json({ error: true });
-    }
-
-    try {
-        saveToken(isSandbox, req.query.token);
-
-        return res
-            .json({
-                token: isProduction ? 'production' : 'sandbox',
-            });
-    } catch (error) {
-        logger(logsServerFileName, error, res);
-    }
-});
+// CRUD токенов.
+tokenRequest(createSdk, app, logsServerFileName);
 
 app.get('/', async (req, res) => {
     try {
