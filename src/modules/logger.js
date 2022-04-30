@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 const fs = require('fs');
 const logger = (logsFileName, error, res) => {
     fs.writeFileSync(logsFileName, new Date().toLocaleString() + ': ' + error + '\r\n', { flag: 'a' });

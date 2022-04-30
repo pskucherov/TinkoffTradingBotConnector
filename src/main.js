@@ -4,9 +4,10 @@ const { createSdk } = require('tinkoff-sdk-grpc-js');
 
 const { app } = require('./modules/server');
 const { logger } = require('./modules/logger');
-const { saveToken, delToken, getTokens } = require('./modules/tokens');
+const { saveToken, delToken, getTokens, selectToken } = require('./modules/tokens');
 
 const options = { year: 'numeric', month: 'numeric', day: 'numeric' };
+
 // Логи ошибок пишутся отдельно для TinkoffApi и http сервера.
 const logsServerFileName = path.join(__dirname, '../logs/server/' + new Date().toLocaleString(undefined, options) + '.txt');
 
@@ -26,10 +27,21 @@ app.get('*/gettokens', async (req, res) => {
     }
 });
 
-
 app.get('*/deltoken', async (req, res) => {
     try {
         delToken(req.query.token);
+
+        return res
+            .json({});
+    } catch (error) {
+        logger(logsServerFileName, error, res);
+    }
+});
+
+app.get('*/selecttoken', async (req, res) => {
+    try {
+        selectToken(req.query.token);
+
         return res
             .json({});
     } catch (error) {
@@ -54,7 +66,7 @@ app.get('*/addtoken', async (req, res) => {
 
         // Ошибку не обрабатываем, т.к. в данном случае это ок.
         // В идеале в ответе иметь это сендбокс или нет.
-    } catch {}
+    } catch (e) {}
 
     if (sandboxAccounts && userInfo) {
         isProduction = true;
@@ -67,30 +79,26 @@ app.get('*/addtoken', async (req, res) => {
 
     try {
         saveToken(isSandbox, req.query.token);
-        
+
         return res
             .json({
-                token: isProduction ? 'production' : 'sandbox'
+                token: isProduction ? 'production' : 'sandbox',
             });
     } catch (error) {
         logger(logsServerFileName, error, res);
     }
 });
 
-
 app.get('/', async (req, res) => {
     try {
         const sdk = createSdk(req.query.token, req.query.appname);
-        console.log(await checkToken(sdk));
 
         return res
             .json(await checkToken(sdk));
-            
     } catch (error) {
         logger(logsServerFileName, error, res);
     }
 });
-
 
 function checkToken(sdk) {
     return sdk.users.getAccounts();
