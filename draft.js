@@ -12,3 +12,21 @@ const sdk = createSdk('token');
 
     console.log('Запрос исторических свечей по инструменту: ', candles);
 })();
+
+(async () => {
+    const futures = await sdk.instruments.futures({
+        instrumentStatus: sdk.InstrumentStatus.INSTRUMENT_STATUS_BASE,
+    });
+    const futureByFIGI = await sdk.instruments.futureBy({
+        idType: sdk.InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI,
+        id: 'FUTSI0623000',
+    });
+
+    const futuresMargin = await sdk.instruments.getFuturesMargin({
+        figi: 'FUTSI0623000',
+    });
+
+    console.log('Получения фьючерсов, допущенных к торговле через API: ', futures);
+    console.log('Получение информации о фьючерсе по его FIGI: ', futureByFIGI);
+    console.log('Получение размера гарантийного обеспечения по фьючерсу: ', futuresMargin);
+})();

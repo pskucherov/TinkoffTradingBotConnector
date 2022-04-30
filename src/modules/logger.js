@@ -1,6 +1,22 @@
 /* eslint-disable no-console */
 const fs = require('fs');
-const logger = (logsFileName, error, res) => {
+const config = require('../config');
+
+/**
+ * Логгер ошибок.
+ *
+ * @param {0|1} 0 - ошибка сервера, 1 - ошибка из api tinkoff.
+ * @param {String} error
+ * @param {*} res
+ * @returns
+ */
+const logger = (type, error, res) => {
+    if (!error) {
+        error = 'Отсутствует текст ошибки!';
+    }
+
+    const logsFileName = type ? config.files.logsApi : config.files.logsServer;
+
     fs.writeFileSync(logsFileName, new Date().toLocaleString() + ': ' + error + '\r\n', { flag: 'a' });
 
     console.log(error);
