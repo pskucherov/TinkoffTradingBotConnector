@@ -12,6 +12,16 @@ const futures = path.join(__dirname, '../data/futures.json');
 const shares = path.join(__dirname, '../data/shares.json');
 
 module.exports = {
+    blueChips: [
+        'FIVE', 'GAZP',
+        'GMKN', 'LKOH',
+        'MTSS', 'MGNT',
+        'NVTK', 'PLZL',
+        'POLY', 'ROSN',
+        'SBER', 'SNGS',
+        'TATN', 'YNDX',
+        //'MAIL',
+    ],
     files: {
         tokens,
         futures,

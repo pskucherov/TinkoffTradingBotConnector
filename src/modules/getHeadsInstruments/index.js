@@ -110,10 +110,75 @@ const getShares = async sdk => {
     return f;
 };
 
+const filterData = (data, filter = 'figi,ticker,lot,name,buyAvailableFlag,sellAvailableFlag') => {
+    const params = filter.split(',');
+    const retData = {};
+
+    for (const name of params) {
+        if (data[name]) {
+            retData[name] = data[name];
+        }
+    }
+
+    return retData;
+};
+
+const getBlueChipsShares = () => {
+    const shares = getSharesFromFile();
+    const blueChips = [];
+
+    if (shares && shares.shares && shares.shares.instruments) {
+        const i = shares.shares.instruments;
+
+        for (const share of i) {
+            if (config.blueChips.includes(share.ticker)) {
+                blueChips.push(filterData(share));
+
+                if (blueChips.length === config.blueChips.length) {
+                    break;
+                }
+            }
+        }
+    }
+
+    return {
+        updatedDate: shares.updateDate,
+        instruments: blueChips,
+    };
+};
+
+const getBlueChipsFutures = () => {
+    const futures = getFuturesFromFile();
+    const blueChips = [];
+
+    if (futures && futures.futures && futures.futures.instruments) {
+        const i = futures.futures.instruments;
+
+        for (const future of i) {
+            if (config.blueChips.includes(future.basicAsset)) {
+                blueChips.push(filterData(future));
+
+                if (blueChips.length === config.blueChips.length) {
+                    break;
+                }
+            }
+        }
+    }
+
+    return {
+        updatedDate: futures.updateDate,
+        instruments: blueChips,
+    };
+};
+
 module.exports = {
     getFutures,
     updateFutures,
 
     getShares,
     updateShares,
+
+    getBlueChipsShares,
+    getBlueChipsFutures,
+
 };
