@@ -7,7 +7,7 @@ try {
     const { app } = require('./modules/server');
     const { tokenRequest, getSelectedToken } = require('./modules/tokens');
     const { getFutures, getShares, getBlueChipsShares,
-        getBlueChipsFutures } = require('./modules/getHeadsInstruments');
+        getBlueChipsFutures, getFigiData, getTradingSchedules } = require('./modules/getHeadsInstruments');
 
     const token = getSelectedToken() || config.defaultToken;
 
@@ -47,12 +47,20 @@ try {
             //     id: 'FUTMGNT03220',
             //   });
 
-            // const candles = await sdk.marketData.getCandles({
-            //     figi: 'BBG004RVFCY3',
-            //     from: new Date('2022-04-04T08:00:00Z'),
-            //     to: new Date('2022-04-04T24:00:00Z'),
-            //     interval: sdk.CandleInterval.CANDLE_INTERVAL_1_MIN,
+            // const candles = await sdk.instruments.tradingSchedules({
+            //     exchange: 'MOEx',
+            //     from: new Date(),
+            //     to: new Date(),
             // });
+
+            // const candles = await sdk.marketData.getCandles({
+            //     figi: 'FUTMGNT06220',
+            //     from: new Date('2022-04-25T00:00:00Z'),
+            //     to: new Date('2022-04-25T24:00:00Z'),
+            //     interval: sdk.CandleInterval.CANDLE_INTERVAL_5_MIN,
+            // });
+            // const fs = require('fs');
+            // fs.writeFileSync('./mgnt.txt', JSON.stringify(candles));
 
             // console.log(JSON.stringify(candles));
         } else {
@@ -60,7 +68,7 @@ try {
         }
     })();
 
-    app.get('/bluechipsshares', async (req, res) => {
+    app.get('/bluechipsshares', (req, res) => {
         try {
             return res
                 .json(getBlueChipsShares());
@@ -69,7 +77,7 @@ try {
         }
     });
 
-    app.get('/bluechipsfutures', async (req, res) => {
+    app.get('/bluechipsfutures', (req, res) => {
         try {
             return res
                 .json(getBlueChipsFutures(sdk));
@@ -77,6 +85,57 @@ try {
             logger(0, error, res);
         }
     });
+
+    app.get('/figi/:figi', (req, res) => {
+        const figi = req.params.figi;
+
+        try {
+            const data = getFigiData(figi);
+
+            if (!data) {
+                return res.status(404).end();
+            }
+
+            return res
+                .json(data);
+        } catch (error) {
+            logger(0, error, res);
+        }
+    });
+
+    app.get('/tradingschedules', async (req, res) => {
+        try {
+            const data = await getTradingSchedules(sdk, req.query.exchange);
+
+            if (!data) {
+                return res.status(404).end();
+            }
+
+            return res.json(data);
+        } catch (error) {
+            logger(0, error, res);
+        }
+    });
+
+    // app.get('/getcandles/:figi', async (req, res) => {
+    //     const figi = req.params.figi;
+
+    //     try {
+    //         const candles = await sdk.marketData.getCandles({
+    //             figi,
+    //             from: req.query.from,
+    //             to: req.query.to,
+    //             interval: req.query.interval,
+    //         });
+
+    //         fs.writeFileSync('./mgnt.txt', JSON.stringify(candles));
+
+    //         return res
+    //             .json(getBlueChipsFutures(sdk));
+    //     } catch (error) {
+    //         logger(0, error, res);
+    //     }
+    // });
 
     app.get('/', async (req, res) => {
         try {
