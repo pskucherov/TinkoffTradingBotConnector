@@ -105,7 +105,7 @@ try {
 
     app.get('/tradingschedules', async (req, res) => {
         try {
-            const data = await getTradingSchedules(sdk, req.query.exchange);
+            const data = await getTradingSchedules(sdk, req.query.exchange, req.query.from, req.query.to);
 
             if (!data) {
                 return res.status(404).end();

@@ -188,11 +188,14 @@ try {
      *
      * @param {*} sdk
      * @param {String[]} exchange
-     * @param {Date} from
-     * @param {Date} to
+     * @param {String} from
+     * @param {?String} to
      * @returns
      */
-    const getTradingSchedules = async (sdk, exchange, from = new Date(), to = new Date()) => {
+    const getTradingSchedules = async (sdk, exchange, from, to) => {
+        from = new Date(Number(from));
+        to = new Date(Number(to));
+
         return await sdk.instruments.tradingSchedules({
             exchange,
             from,
