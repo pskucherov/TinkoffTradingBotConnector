@@ -189,7 +189,7 @@ try {
      * @param {*} sdk
      * @param {String[]} exchange
      * @param {String} from
-     * @param {?String} to
+     * @param {String} to
      * @returns
      */
     const getTradingSchedules = async (sdk, exchange, from, to) => {
@@ -200,6 +200,26 @@ try {
             exchange,
             from,
             to,
+        });
+    };
+
+    /**
+     * Получить свечи инструмента.
+     *
+     * @param {*} sdk
+     * @param {String[]} exchange
+     * @param {String} from
+     * @param {?String} to
+     * @returns
+     */
+    const getCandles = async (sdk, figi, interval, from, to) => {
+        // TODO: кэширование
+
+        return await sdk.marketData.getCandles({
+            figi,
+            from: new Date(Number(from)),
+            to: new Date(Number(to)),
+            interval,
         });
     };
 
@@ -243,6 +263,7 @@ try {
         getBlueChipsFutures,
 
         getFigiData,
+        getCandles,
 
         getTradingSchedules,
     };

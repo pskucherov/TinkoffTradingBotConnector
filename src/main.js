@@ -7,7 +7,8 @@ try {
     const { app } = require('./modules/server');
     const { tokenRequest, getSelectedToken } = require('./modules/tokens');
     const { getFutures, getShares, getBlueChipsShares,
-        getBlueChipsFutures, getFigiData, getTradingSchedules } = require('./modules/getHeadsInstruments');
+        getBlueChipsFutures, getFigiData, getTradingSchedules,
+        getCandles } = require('./modules/getHeadsInstruments');
 
     const token = getSelectedToken() || config.defaultToken;
 
@@ -120,26 +121,8 @@ try {
     app.get('/getcandles/:figi', async (req, res) => {
         const figi = req.params.figi;
 
-        const from = new Date();
-
-        from.setHours(0, 0, 0, 0);
-
-        const to = new Date();
-
-        to.setHours(23, 59, 59, 999);
-
         try {
-            const candles = await sdk.marketData.getCandles({
-                figi,
-                from,
-                to,
-
-                // from: req.query.from,
-                // to: req.query.to,
-                interval: 2,
-            });
-
-            // fs.writeFileSync('./mgnt.txt', JSON.stringify(candles));
+            const candles = await getCandles(figi, req.query.interval, req.query.from, req.query.to);
 
             return res
                 .json(candles);
