@@ -1,5 +1,10 @@
-const config = require('./config');
+const path = require('path');
+const chokidar = require('chokidar');
+const configFile = path.join(__dirname, './config.js');
+
+const config = require(configFile);
 const { logger } = require('./modules/logger');
+const hmr = require('node-hmr');
 
 try {
     const { createSdk } = require('tinkoff-sdk-grpc-js');
@@ -10,7 +15,28 @@ try {
         getBlueChipsFutures, getFigiData, getTradingSchedules,
         getCandles } = require('./modules/getHeadsInstruments');
 
-    const token = getSelectedToken() || config.defaultToken;
+    let token;
+    let tokenFromJson = getSelectedToken();
+
+    // За изменение json файла наблюдаем отдельно,
+    // т.к. hmr его не подтягивает.
+    // TODO: сохранять токен из запроса без вотчинга файла.
+    chokidar
+        .watch([config.files.tokens])
+        .on('all', () => {
+            tokenFromJson = getSelectedToken();
+            if (tokenFromJson) {
+                token = tokenFromJson;
+            }
+        });
+
+    // Следим за изменением конфига,
+    // чтобы не перезагружать сервер.
+    hmr(() => {
+        token = tokenFromJson || config.defaultToken;
+    }, { watchDir: '../', watchFilePatterns: [
+        configFile,
+    ] });
 
     // TODO: изменить руками или в процессе создания робота.
     const appName = config.appName || 'pskucherov.tinkofftradingbot';
@@ -42,28 +68,6 @@ try {
             const shares = await getShares(sdk);
 
             shares && shares.updateDate && logger(0, 'Дата обновления списка акций: ' + shares.updateDate);
-
-            // const futureByFIGI = await sdk.instruments.futureBy({
-            //     idType: sdk.InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI,
-            //     id: 'FUTMGNT03220',
-            //   });
-
-            // const candles = await sdk.instruments.tradingSchedules({
-            //     exchange: 'MOEx',
-            //     from: new Date(),
-            //     to: new Date(),
-            // });
-
-            // const candles = await sdk.marketData.getCandles({
-            //     figi: 'FUTMGNT06220',
-            //     from: new Date('2022-04-25T00:00:00Z'),
-            //     to: new Date('2022-04-25T24:00:00Z'),
-            //     interval: sdk.CandleInterval.CANDLE_INTERVAL_5_MIN,
-            // });
-            // const fs = require('fs');
-            // fs.writeFileSync('./mgnt.txt', JSON.stringify(candles));
-
-            // console.log(JSON.stringify(candles));
         } else {
             logger(0, 'Укажите token для получения фьючерсов и акций.');
         }
@@ -131,8 +135,8 @@ try {
         }
     });
 
-    let a;
-    const b = { b: 0 };
+    // let a;
+    // const b = { b: 0 };
 
     app.get('/', async (req, res) => {
         try {
