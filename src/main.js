@@ -4,7 +4,58 @@ const configFile = path.join(__dirname, './config.js');
 
 const config = require(configFile);
 const { logger } = require('./modules/logger');
-const hmr = require('node-hmr');
+const { tokenRequest } = require('./modules/tokens');
+
+const options = { year: 'numeric', month: 'numeric', day: 'numeric' };
+
+// Логи ошибок пишутся отдельно для TinkoffApi и http сервера.
+const logsServerFileName = path.join(__dirname, '../logs/server/' + new Date().toLocaleString(undefined, options) + '.txt');
+
+// Ответ сервера, чтобы проверен что запущен.
+app.get('*/check', (req, res) => {
+    return res
+        .status(200)
+        .json({ status: true });
+});
+
+// CRUD токенов.
+tokenRequest(createSdk, app, logsServerFileName);
+
+app.get('/logs', async (req, res) => {
+    const path = require('path');
+
+    const options = { year: 'numeric', month: 'numeric', day: 'numeric' };
+    const dateStr = new Date().toLocaleString(undefined, options);
+
+    const fs = require('fs');
+    
+    const dataPath = path.join(__dirname, `../logs/server/${dateStr}.txt`);
+
+    fs.readFile(dataPath, (err, data) => {
+        if (err) {
+            throw err;
+        }
+
+        res.send(data);
+    });
+});
+
+
+
+app.get('/', async (req, res) => {
+    try {
+        const sdk = createSdk(req.query.token, req.query.appname);
+
+        return res
+            .json(await checkToken(sdk));
+    } catch (error) {
+        logger(logsServerFileName, error, res);
+    }
+});
+
+function checkToken(sdk) {
+    return sdk.users.getAccounts();
+    const hmr = require('node-hmr');
 
 try {
     const { createSdk } = require('tinkoff-sdk-grpc-js');
@@ -195,3 +246,4 @@ try {
 } catch (error) {
     logger(0, error);
 }
+   
