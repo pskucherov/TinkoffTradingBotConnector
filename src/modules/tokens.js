@@ -1,8 +1,9 @@
 const fs = require('fs');
-const path = require('path');
 
 const { logger } = require('./logger');
 const fileName = path.join(__dirname, '../../tokens/data.json');
+const config = require('../config');
+const fileName = config.files.tokens;
 
 /**
  * Выставляет маркер выбранного токена.
@@ -24,6 +25,23 @@ const selectToken = token => {
         }
 
         fs.writeFileSync(fileName, JSON.stringify(tokens));
+    }
+};
+
+/**
+ * Возвращает выбранный токен, если такой есть.
+ *
+ * @returns {?String}
+ */
+const getSelectedToken = () => {
+    const file = fs.readFileSync(fileName, 'utf8');
+
+    const tokens = JSON.parse(file);
+
+    for (const t of tokens) {
+        if (t.selected) {
+            return t.token;
+        }
     }
 };
 
@@ -75,12 +93,14 @@ const getTokens = () => {
 };
 
 const tokenRequest = (createSdk, app, logsServerFileName) => {
+const tokenRequest = (createSdk, app) => {
     app.get('*/gettokens', async (req, res) => {
         try {
             return res
                 .json(getTokens());
         } catch (error) {
             logger(logsServerFileName, error, res);
+            logger(0, error, res);
         }
     });
 
@@ -92,6 +112,7 @@ const tokenRequest = (createSdk, app, logsServerFileName) => {
                 .json({});
         } catch (error) {
             logger(logsServerFileName, error, res);
+            logger(0, error, res);
         }
     });
 
@@ -103,6 +124,7 @@ const tokenRequest = (createSdk, app, logsServerFileName) => {
                 .json({});
         } catch (error) {
             logger(logsServerFileName, error, res);
+            logger(0, error, res);
         }
     });
 
@@ -143,10 +165,12 @@ const tokenRequest = (createSdk, app, logsServerFileName) => {
                 });
         } catch (error) {
             logger(logsServerFileName, error, res);
+            logger(0, error, res);
         }
     });
 };
 
 module.exports = {
     tokenRequest,
+    getSelectedToken,
 };
