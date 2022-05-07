@@ -20,8 +20,6 @@ module.exports = {
         'POLY', 'ROSN',
         'SBER', 'SNGS',
         'TATN', 'YNDX',
-
-        //'MAIL',
     ],
     files: {
         tokens,

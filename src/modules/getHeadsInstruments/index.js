@@ -214,7 +214,6 @@ try {
      */
     const getCandles = async (sdk, figi, interval, from, to) => {
         // TODO: кэширование
-
         return await sdk.marketData.getCandles({
             figi,
             from: new Date(Number(from)),

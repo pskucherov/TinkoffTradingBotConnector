@@ -29,4 +29,13 @@ const logger = (type, error, res) => {
     }
 };
 
-module.exports.logger = logger;
+const sdkLogger = (meta, error, descr) => {
+    const err = descr && descr.description || meta && meta.message || error && JSON.stringify(error);
+
+    return logger(1, err);
+};
+
+module.exports = {
+    logger,
+    sdkLogger,
+};

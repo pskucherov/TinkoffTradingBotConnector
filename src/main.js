@@ -2,8 +2,8 @@ const path = require('path');
 const chokidar = require('chokidar');
 const configFile = path.join(__dirname, './config.js');
 
-const config = require(configFile);
-const { logger } = require('./modules/logger');
+let config = require(configFile);
+const { logger, sdkLogger } = require('./modules/logger');
 const hmr = require('node-hmr');
 
 try {
@@ -31,23 +31,26 @@ try {
             tokenFromJson = getSelectedToken();
             if (tokenFromJson) {
                 token = tokenFromJson;
-                sdk = createSdk(token, appName);
+                sdk = createSdk(token, appName, sdkLogger);
             }
         });
 
     // Следим за изменением конфига,
     // чтобы не перезагружать сервер.
     hmr(() => {
+        config = require(configFile);
         token = tokenFromJson || config.defaultToken;
-        sdk = createSdk(token, appName);
-    }, { watchDir: '../', watchFilePatterns: [
+        if (token) {
+            sdk = createSdk(token, appName, sdkLogger);
+        }
+    }, { watchFilePatterns: [
         configFile,
     ] });
 
     if (!token) {
         logger(0, 'Нет выбранного токена. Добавьте в src/config.js руками или через opexviewer.');
     } else {
-        sdk = createSdk(token, appName);
+        sdk = createSdk(token, appName, sdkLogger);
     }
 
     // Ответ сервера, чтобы проверен что запущен.
