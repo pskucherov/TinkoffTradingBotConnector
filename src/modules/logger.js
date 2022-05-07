@@ -16,6 +16,8 @@ const logger = (type, error, res) => {
 
     if (!error) {
         error = 'Отсутствует текст ошибки!';
+    } else if (typeof error === 'object') {
+        error = JSON.stringify(error);
     }
 
     const logsFileName = type ? config.files.logsApi : config.files.logsServer;

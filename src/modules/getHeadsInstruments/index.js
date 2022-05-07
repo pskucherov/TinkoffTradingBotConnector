@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const config = require('../../config');
 const { logger } = require('../logger');
 
@@ -204,7 +205,78 @@ try {
     };
 
     /**
+     * @copypaste https://stackoverflow.com/questions/31645738/how-to-create-full-path-with-nodes-fs-mkdirsync
+     *
+     * @param {*} targetDir
+     * @param {*} param1
+     * @returns
+     */
+    const mkDirByPathSync = (targetDir, { isRelativeToScript = false } = {}) => {
+        const sep = path.sep;
+        const initDir = path.isAbsolute(targetDir) ? sep : '';
+        const baseDir = isRelativeToScript ? __dirname : '.';
+
+        return targetDir.split(sep).reduce((parentDir, childDir) => {
+            const curDir = path.resolve(baseDir, parentDir || '', childDir || '');
+
+            try {
+                return fs.mkdirSync(curDir);
+            } catch (err) {
+                if (err.code === 'EEXIST') { // curDir already exists!
+                    return curDir;
+                }
+
+                // To avoid `EISDIR` error on Mac and `EACCES`-->`ENOENT` and `EPERM` on Windows.
+                if (err.code === 'ENOENT') { // Throw the original parentDir error on curDir `ENOENT` failure.
+                    logger(0, `EACCES: permission denied, mkdir '${parentDir}'`);
+                }
+
+                const caughtErr = ['EACCES', 'EPERM', 'EISDIR'].indexOf(err.code) > -1;
+
+                if (!caughtErr || caughtErr && curDir === path.resolve(targetDir)) {
+                    logger(0, JSON.stringify(err)); // Throw if it's just the last created dir.
+                }
+            }
+
+            return curDir;
+        }, initDir);
+    };
+
+    const getCacheCanglesPath = (figi, interval, from, to) => {
+        const dir = mkDirByPathSync(path.join(config.files.candlesCacheDir, figi, interval));
+
+        if (dir) {
+            return path.join(dir, `${from.getTime()}-${to.getTime()}.json`);
+        }
+    };
+
+    const getCandlesFromCache = filePath => {
+        try {
+            const data = fs.readFileSync(filePath);
+
+            return data && JSON.parse(data);
+        } catch (err) {
+            logger(0, err);
+        }
+    };
+
+    const setCandlesToCache = (filePath, data) => {
+        try {
+            fs.writeFile(filePath, JSON.stringify(data), err => {
+                if (err) {
+                    logger(0, err);
+                }
+            });
+        } catch (err) {
+            logger(0, err);
+        }
+    };
+
+    /**
      * Получить свечи инструмента.
+     * Пытается взять из кэша, если не получается, то сохраняет их туда.
+     * Кэширование включено только для предыдущих дат.
+     * Для текущего дня данные всегда без кэша
      *
      * @param {*} sdk
      * @param {String[]} exchange
@@ -213,13 +285,37 @@ try {
      * @returns
      */
     const getCandles = async (sdk, figi, interval, from, to) => {
-        // TODO: кэширование
-        return await sdk.marketData.getCandles({
+        let candles;
+
+        from = new Date(Number(from));
+        to = new Date(Number(to));
+
+        // Сейчас все свечи запрашиваются по дням.
+        // Если надо будет по часам, то здесь надо переделывать.
+        const useCache = to < new Date();
+        let filePath = useCache && getCacheCanglesPath(figi, interval, from, to);
+
+        if (useCache && filePath && fs.existsSync(filePath)) {
+            filePath = getCacheCanglesPath(figi, interval, from, to);
+            candles = getCandlesFromCache(filePath);
+
+            if (candles) {
+                return candles;
+            }
+        }
+
+        candles = await sdk.marketData.getCandles({
             figi,
-            from: new Date(Number(from)),
-            to: new Date(Number(to)),
+            from,
+            to,
             interval,
         });
+
+        if (useCache && filePath) {
+            setCandlesToCache(filePath, candles);
+        }
+
+        return candles;
     };
 
     /**
