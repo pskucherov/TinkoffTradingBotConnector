@@ -15,6 +15,10 @@ try {
         getBlueChipsFutures, getFigiData, getTradingSchedules,
         getCandles } = require('./modules/getHeadsInstruments');
 
+    // TODO: изменить руками или в процессе создания робота.
+    const appName = config.appName || 'pskucherov.tinkofftradingbot';
+
+    let sdk;
     let token;
     let tokenFromJson = getSelectedToken();
 
@@ -27,6 +31,7 @@ try {
             tokenFromJson = getSelectedToken();
             if (tokenFromJson) {
                 token = tokenFromJson;
+                sdk = createSdk(token, appName);
             }
         });
 
@@ -34,13 +39,10 @@ try {
     // чтобы не перезагружать сервер.
     hmr(() => {
         token = tokenFromJson || config.defaultToken;
+        sdk = createSdk(token, appName);
     }, { watchDir: '../', watchFilePatterns: [
         configFile,
     ] });
-
-    // TODO: изменить руками или в процессе создания робота.
-    const appName = config.appName || 'pskucherov.tinkofftradingbot';
-    let sdk;
 
     if (!token) {
         logger(0, 'Нет выбранного токена. Добавьте в src/config.js руками или через opexviewer.');
@@ -126,7 +128,7 @@ try {
         const figi = req.params.figi;
 
         try {
-            const candles = await getCandles(figi, req.query.interval, req.query.from, req.query.to);
+            const candles = await getCandles(sdk, figi, req.query.interval, req.query.from, req.query.to);
 
             return res
                 .json(candles);
@@ -135,63 +137,253 @@ try {
         }
     });
 
-    // let a;
-    // const b = { b: 0 };
+    app.get('/order', async (req, res) => {
+        const figi = req.params.figi;
 
-    app.get('/', async (req, res) => {
         try {
+            const { orders, users, ordersStream, tradesStream, SubscriptionAction, TradesStreamRequest } = sdk;
 
-            // for (let i = 0; i <= 1000000; i++ ) {
-            // b.b++;
-            // res.write(JSON.stringify(b));
-            // }
-            // return;
+            const keepCalling = true;
+            const timer = time => new Promise(resolve => setTimeout(resolve, time));
 
-            // if (a) {
-            //     for await (const num of a) {
-            //         //console.log(JSON.stringify(num));
-            //         //res.write(JSON.stringify(num));
-            //         res.write(JSON.stringify(num));
-            //     }
-            //     return;
-            // };
-            // const { marketDataStreamService, MarketDataStreamService, marketDataStream, SubscriptionAction, SubscriptionInterval, MarketDataRequest  } = sdk;
-
-            // let keepCalling = true;
-
-            // const timer = (time) => new Promise(resolve => setTimeout(resolve, time));
-
-            // async function* createSubscriptionOrderBookRequest() {
-            //     while (keepCalling) {
-            //       await timer(50);
-            //       yield MarketDataRequest.fromJSON({
-            //         subscribeLastPriceRequest: {
-            //           subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
-            //           instruments: [{ figi: 'FUTMGNT06220', interval: 1 }],
-            //         },
-            //       });
-            //     }
+            // async function* createSubscOrders() {
+            //        while (keepCalling) {
+            //         await timer(100);
+            //         yield TradesStreamRequest.fromPartial({
+            //             orderTrades: {
+            //                 accounts: ['']
+            //             },
+            //         });
+            //        }
             //   }
 
-            //   const response = marketDataStream.marketDataStream(createSubscriptionOrderBookRequest());
-            //   a = response;
-            //      console.log('qwe');
-            //     for await (const num of response) {
-            //         //console.log(JSON.stringify(num));
-            //         //res.write(JSON.stringify(num));
-            //         res.write(JSON.stringify(num));
-            //     }
+            //   let response1 = ordersStream.tradesStream(createSubscOrders());
+            //   (async () => {
+            //       for await (const num of response1) {
+            //           console.log(JSON.stringify(num));
+            //       }
+            //   })();
 
-            // // return res
-            // //     .json(await checkToken(sdk));
+            const ordersResponse = await orders.getOrders({
+                accountId: '',
+            });
+
+            // console.log(JSON.stringify(ordersResponse));
+
+            // console.log(JSON.stringify(await orders.getOrderState({
+            //     accountId: '',
+            //     orderId: '31257187915',
+            // })));
+
+            // console.log(JSON.stringify(await orders.cancelOrder({
+            //     accountId: '',
+            //     orderId: '31257187915',
+            // })));
+
+            // const setOrder = await orders.postOrder({
+            //     accountId: '',
+            //     figi: 'BBG006L8G4H1',
+            //     quantity: 1,
+            //     price: { units: 1673, nano: 0 },
+            //     direction: 1, // OrderDirection.ORDER_DIRECTION_BUY,
+            //     orderType: 2, // OrderType.ORDER_TYPE_LIMIT,
+            //     orderId: 'abc-fsdfdsfsdf-2',
+            //   });
+
+            //   console.log('Выставление заявки: ', setOrder);
+            //   console.log(JSON.stringify(setOrder));
         } catch (error) {
             logger(0, error, res);
         }
     });
 
-    function checkToken(sdk) {
-        return sdk.users.getAccounts();
-    }
+    // let prevPrice;
+    // let response1;
+    // let response3;
+    // app.get('/:figi', async (req, res) => {
+    //     const figi = req.params.figi;
+    //     try {
+
+    //         const { users, marketDataStream, SubscriptionAction, MarketDataRequest  } = sdk;
+
+    //         let keepCalling = true;
+
+    //         const timer = (time) => new Promise(resolve => setTimeout(resolve, time));
+
+    //         async function* createSubscriptionOrderBookRequest1() {
+    //             // const f = async () => {
+    //             //    while (keepCalling) {
+    //             //     await timer(100);
+    //                 yield MarketDataRequest.fromJSON({
+    //                     subscribeLastPriceRequest: {
+    //                     subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
+    //                     instruments: [{ figi }],
+    //                     },
+    //                 });
+
+    //             // }  process.nextTick(f);
+    //             // }
+    //           }
+
+    //           console.log(SubscriptionAction.SUBSCRIPTION_ACTION_UNSUBSCRIBE);
+
+    //           async function* createUnsubscriptionOrderBookRequest1() {
+    //             yield MarketDataRequest.fromJSON({
+    //                 subscribeLastPriceRequest: {
+    //                     subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_UNSUBSCRIBE,
+    //                     instruments: [{ figi }],
+    //                 },
+    //             });
+    //           }
+
+    //           async function* createSubsInfo() {
+    //             yield MarketDataRequest.fromJSON({
+    //                 subscribeInfoRequest: {
+    //                     subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
+    //                     instruments: [{ figi }],
+    //                 },
+    //             });
+    //           }
+
+    //            response1 || (response1 = marketDataStream.marketDataStream(createSubscriptionOrderBookRequest1()));
+    //            response3 || (response3 = marketDataStream.marketDataStream(createSubsInfo()));
+
+    //            req.on("close", async function() {
+    //             console.log('close');
+    //             keepCalling = false;
+    //             const f = async () => {
+    //                     for await (const num of marketDataStream.marketDataStream(createUnsubscriptionOrderBookRequest1()));
+    //                     setInterval(async () => {
+    //                         console.log('int')
+    //                         for await (const l of marketDataStream.marketDataStream(createSubsInfo())) {
+    //                             console.log('response33');
+    //                             const z = () => {
+    //                             console.log(JSON.stringify(l));
+    //                             }
+    //                             process.nextTick(z);
+    //                         }
+    //                     }, 1000);
+
+    //                 // response1 = undefined;
+    //             }
+    //             process.nextTick(f);
+    //         });
+
+    //         req.on("end", function() {
+    //             console.log('end');
+    //             marketDataStream.marketDataStream(createUnsubscriptionOrderBookRequest1())
+    //             response1 = undefined;
+    //         });
+
+    //         setInterval(async () => {
+    //             console.log('interval');
+    //             response1 = marketDataStream.marketDataStream(createSubscriptionOrderBookRequest1());
+
+    //             console.log(JSON.stringify(await users.getUserTariff({})));
+
+    //             for await (const num of response1) {
+    //                 console.log(JSON.stringify(num));
+
+    //                 const f = () => {
+    //                     if (num.lastPrice) {
+
+    //                     const currentUnicPrice = num.lastPrice.price.units + num.lastPrice.price.nano;
+    //                     console.log('lastprice', currentUnicPrice, prevPrice);
+    //                     if (prevPrice !== currentUnicPrice) {
+    //                         console.log(JSON.stringify(num));
+    //                        prevPrice = currentUnicPrice;
+    //                         console.log(num.lastPrice);
+    //                         res.write(JSON.stringify(num.lastPrice));
+    //                     }
+    //                 }
+    //             }
+
+    //                 for await (const num of response3) {
+    //                     console.log('response31');
+    //                     const f = () => {
+    //                        console.log(JSON.stringify(num));
+    //                     }
+    //                     process.nextTick(f);
+    //                 }
+
+    //                 process.nextTick(f);
+    //             }
+    //         }, 1000);
+
+    //     } catch (error) {
+    //         logger(0, error, res);
+    //     }
+    // });
+
+    // let response2;
+
+    // app.get('/subscribecandles/:figi', async (req, res) => {
+    //     const figi = req.params.figi;
+    //     try {
+
+    //         const { marketDataStream, SubscriptionAction, MarketDataRequest  } = sdk;
+
+    //         let keepCalling = true;
+
+    //         const timer = (time) => new Promise(resolve => setTimeout(resolve, time));
+
+    //         async function* createSubscriptionCandlesRequest() {
+    //             console.log([{ figi, interval: req.query.interval }]);
+    //             // const f = async () => {
+    //             while (keepCalling) {
+    //                 await timer(100);
+    //                 yield MarketDataRequest.fromJSON({
+    //                     subscribeCandlesRequest: {
+    //                         subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
+    //                         instruments: [{ figi, interval: 1
+    //                             // Number(req.query.interval)
+    //                          }],
+    //                     },
+    //                 });
+    //             }
+    //             // }
+    //             // process.nextTick(f);
+    //         }
+
+    //         async function* createUnsubscriptionCandlesRequest() {
+    //             yield MarketDataRequest.fromJSON({
+    //                 subscribeCandlesRequest: {
+    //                     subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_UNSUBSCRIBE,
+    //                     instruments: [{ figi, interval: 1
+    //                         // Number(req.query.interval)
+    //                         }],
+    //                 },
+    //             });
+    //         }
+
+    //         req.on("close", function() {
+    //             console.log('close 2');
+    //             marketDataStream.marketDataStream(createUnsubscriptionCandlesRequest());
+    //             response2 = undefined;
+    //         });
+
+    //         req.on("end", function() {
+    //             console.log('end 2');
+    //             marketDataStream.marketDataStream(createUnsubscriptionCandlesRequest())
+    //             response2 = undefined;
+    //         });
+
+    //             response2 || (response2 = marketDataStream.marketDataStream(createSubscriptionCandlesRequest()));
+    //             for await (const num of response2) {
+    //                 const f = () => {
+    //                 if (num.candle) {
+    //                     console.log('candle')
+    //                     console.log(JSON.stringify(num));
+    //                     res.write(JSON.stringify(num.candle));
+    //                 }
+    //             }
+    //             process.nextTick(f);
+    //             }
+
+    //     } catch (error) {
+    //         logger(0, error, res);
+    //     }
+    // });
 } catch (error) {
     logger(0, error);
 }
