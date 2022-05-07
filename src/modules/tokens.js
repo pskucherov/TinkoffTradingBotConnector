@@ -28,6 +28,29 @@ const selectToken = token => {
 };
 
 /**
+ * Добавляем к токену выбранный аккаунт для торговли.
+ *
+ * @param {String} token
+ * @param {String} accountId
+ */
+const addAccountIdToToken = (token, accountId) => {
+    const file = fs.readFileSync(fileName, 'utf8');
+
+    if (file.includes(token)) {
+        const tokens = JSON.parse(file);
+
+        for (const t of tokens) {
+            if (t.token === token) {
+                t.accountId = accountId;
+                break;
+            }
+        }
+
+        fs.writeFileSync(fileName, JSON.stringify(tokens));
+    }
+};
+
+/**
  * Возвращает выбранный токен, если такой есть.
  *
  * @returns {?String}
@@ -182,4 +205,5 @@ const tokenRequest = (createSdk, app) => {
 module.exports = {
     tokenRequest,
     getSelectedToken,
+    addAccountIdToToken,
 };

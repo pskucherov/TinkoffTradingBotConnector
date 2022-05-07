@@ -11,6 +11,7 @@ try {
 
     const { app } = require('./modules/server');
     const { tokenRequest, getSelectedToken } = require('./modules/tokens');
+    const { accountsRequest } = require('./modules/accounts');
     const { getFutures, getShares, getBlueChipsShares,
         getBlueChipsFutures, getFigiData, getTradingSchedules,
         getCandles } = require('./modules/getHeadsInstruments');
@@ -62,6 +63,9 @@ try {
 
     // CRUD токенов.
     tokenRequest(createSdk, app);
+
+    // CRUD аккаунтов.
+    accountsRequest(sdk, app);
 
     // Получение списка фьючерсов и акций, если их нет.
     (async () => {
