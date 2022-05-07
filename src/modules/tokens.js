@@ -32,14 +32,14 @@ const selectToken = token => {
  *
  * @returns {?String}
  */
-const getSelectedToken = () => {
+const getSelectedToken = fullTokenData => {
     const file = fs.readFileSync(fileName, 'utf8');
 
     const tokens = JSON.parse(file);
 
     for (const t of tokens) {
         if (t.selected) {
-            return t.token;
+            return fullTokenData ? t : t.token;
         }
     }
 };
@@ -118,6 +118,21 @@ const tokenRequest = (createSdk, app) => {
 
             return res
                 .json({});
+        } catch (error) {
+            logger(0, error, res);
+        }
+    });
+
+    app.get('*/getselectedtoken', async (req, res) => {
+        try {
+            const data = getSelectedToken(1);
+
+            if (!data) {
+                return res.status(404).end();
+            }
+
+            return res
+                .json(data);
         } catch (error) {
             logger(0, error, res);
         }
