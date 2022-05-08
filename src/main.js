@@ -19,9 +19,38 @@ try {
     // TODO: изменить руками или в процессе создания робота.
     const appName = config.appName || 'pskucherov.tinkofftradingbot';
 
-    let sdk;
+    // Сохрянем sdk в объект для hmr, чтобы после смены токена ссылка на sdk сохранялась.
+    const sdk = { sdk: undefined };
     let token;
     let tokenFromJson = getSelectedToken();
+
+    // Получение списка фьючерсов и акций, если их нет.
+    // Устанавливает crud для аккаунтов.
+    // Выполняется один раз при старте сервера после добавления токена.
+    let prepared = false;
+    const prepareServer = async () => {
+        if (prepared) {
+            return;
+        }
+
+        if (sdk.sdk) {
+            prepared = true;
+
+            const futures = await getFutures(sdk.sdk);
+
+            futures && futures.updateDate && logger(0, 'Дата обновления списка фьючерсов: ' + futures.updateDate);
+
+            const shares = await getShares(sdk.sdk);
+
+            shares && shares.updateDate && logger(0, 'Дата обновления списка акций: ' + shares.updateDate);
+
+            // CRUD аккаунтов. Здесь вместо sdk передаём весь объект,
+            // а содержимое берём каждый раз при запросе.
+            accountsRequest(sdk, app);
+        } else {
+            logger(0, 'Укажите token для старта сервера.');
+        }
+    };
 
     // За изменение json файла наблюдаем отдельно,
     // т.к. hmr его не подтягивает.
@@ -32,17 +61,20 @@ try {
             tokenFromJson = getSelectedToken();
             if (tokenFromJson) {
                 token = tokenFromJson;
-                sdk = createSdk(token, appName, sdkLogger);
+                sdk.sdk = createSdk(token, appName, sdkLogger);
+
+                prepareServer();
             }
         });
 
-    // Следим за изменением конфига,
-    // чтобы не перезагружать сервер.
+    // Следим за изменением конфига.
     hmr(() => {
         config = require(configFile);
         token = tokenFromJson || config.defaultToken;
         if (token) {
-            sdk = createSdk(token, appName, sdkLogger);
+            sdk.sdk = createSdk(token, appName, sdkLogger);
+
+            prepareServer();
         }
     }, { watchFilePatterns: [
         configFile,
@@ -51,7 +83,7 @@ try {
     if (!token) {
         logger(0, 'Нет выбранного токена. Добавьте в src/config.js руками или через opexviewer.');
     } else {
-        sdk = createSdk(token, appName, sdkLogger);
+        sdk.sdk = createSdk(token, appName, sdkLogger);
     }
 
     // Ответ сервера, чтобы проверен что запущен.
@@ -63,24 +95,6 @@ try {
 
     // CRUD токенов.
     tokenRequest(createSdk, app);
-
-    // CRUD аккаунтов.
-    accountsRequest(sdk, app);
-
-    // Получение списка фьючерсов и акций, если их нет.
-    (async () => {
-        if (sdk) {
-            const futures = await getFutures(sdk);
-
-            futures && futures.updateDate && logger(0, 'Дата обновления списка фьючерсов: ' + futures.updateDate);
-
-            const shares = await getShares(sdk);
-
-            shares && shares.updateDate && logger(0, 'Дата обновления списка акций: ' + shares.updateDate);
-        } else {
-            logger(0, 'Укажите token для получения фьючерсов и акций.');
-        }
-    })();
 
     app.get('/bluechipsshares', (req, res) => {
         try {
@@ -94,7 +108,7 @@ try {
     app.get('/bluechipsfutures', (req, res) => {
         try {
             return res
-                .json(getBlueChipsFutures(sdk));
+                .json(getBlueChipsFutures(sdk.sdk));
         } catch (error) {
             logger(0, error, res);
         }
@@ -119,7 +133,7 @@ try {
 
     app.get('/tradingschedules', async (req, res) => {
         try {
-            const data = await getTradingSchedules(sdk, req.query.exchange, req.query.from, req.query.to);
+            const data = await getTradingSchedules(sdk.sdk, req.query.exchange, req.query.from, req.query.to);
 
             if (!data) {
                 return res.status(404).end();
@@ -135,7 +149,7 @@ try {
         const figi = req.params.figi;
 
         try {
-            const candles = await getCandles(sdk, figi, req.query.interval, req.query.from, req.query.to);
+            const candles = await getCandles(sdk.sdk, figi, req.query.interval, req.query.from, req.query.to);
 
             return res
                 .json(candles);

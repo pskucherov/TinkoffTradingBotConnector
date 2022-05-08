@@ -37,14 +37,16 @@ const getAccounts = async (sdk, isSandbox) => {
     return accounts;
 };
 
-const accountsRequest = (sdk, app) => {
+const accountsRequest = (sdkObj, app) => {
     app.get('/getaccounts', async (req, res) => {
+        const { sdk } = sdkObj;
+
         try {
             // Запрашиваем токен каждый раз, т.к. мог поменяться.
             // Знать sandbox или нет -- критично.
             const token = getSelectedToken(1);
 
-            return res.json(await getAccounts(sdk, token.isSandbox));
+            return res.json(token ? await getAccounts(sdk, token.isSandbox) : {});
         } catch (error) {
             logger(0, error, res);
         }
