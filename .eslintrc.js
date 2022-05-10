@@ -7,7 +7,7 @@ module.exports = {
         commonjs: true,
     },
     parserOptions: {
-        ecmaVersion: 8,
+        ecmaVersion: 2020,
     },
     globals: {
         console: false,

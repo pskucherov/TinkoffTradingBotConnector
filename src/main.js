@@ -158,6 +158,37 @@ try {
         }
     });
 
+    app.get('/getcachedorderbook/:figi', async (req, res) => {
+        const figi = req.params.figi;
+        const time = req.query.time;
+        const bufOrderBookFile = path.resolve(__dirname, `../data/cachedorderbooks/${figi}/buf.json`);
+
+        try {
+            const fs = require('fs');
+            const file = fs.readFileSync(bufOrderBookFile, 'utf8');
+
+            if (!file) {
+                return res.status(404).end();
+            }
+
+            const data = JSON.parse(file);
+
+            if (!time) {
+                return res
+                    .json(data);
+            }
+
+            if (!data[time]) {
+                return res.status(404).end();
+            }
+
+            return res
+                .json(data[time]);
+        } catch (error) {
+            logger(0, error, res);
+        }
+    });
+
     app.get('/order', async (req, res) => {
         const figi = req.params.figi;
 

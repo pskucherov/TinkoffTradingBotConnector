@@ -217,7 +217,13 @@ try {
         const baseDir = isRelativeToScript ? __dirname : '.';
 
         return targetDir.split(sep).reduce((parentDir, childDir) => {
-            const curDir = path.resolve(baseDir, parentDir || '', childDir || '');
+            let curDir = baseDir;
+
+            if (parentDir && childDir) {
+                curDir = path.resolve(curDir, parentDir, childDir);
+            } else if (parentDir) {
+                curDir = path.resolve(curDir, parentDir);
+            }
 
             try {
                 return fs.mkdirSync(curDir);
