@@ -30,7 +30,7 @@ module.exports = {
         logsApi,
         candlesCacheDir,
     },
-    defaultToken: 't.UDHjZdjfs0d3go22w7gbF08CIhVe4zdrrW-L4CbhqeM2zbvxNzcJzkV_jX3ZrvcyfuChz5-B9R5dloLpmv-evA',
+    defaultToken: '',
     appName: '',
     dateStr,
 };
