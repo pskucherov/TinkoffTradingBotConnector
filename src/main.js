@@ -32,7 +32,7 @@ try {
                 token = tokenFromJson;
                 sdk.sdk = createSdk(token, appName, sdkLogger);
 
-                prepareServer();
+                prepareServer(sdk, app);
             }
         });
 
@@ -43,7 +43,7 @@ try {
         if (token) {
             sdk.sdk = createSdk(token, appName, sdkLogger);
 
-            prepareServer();
+            prepareServer(sdk, app);
         }
     }, { watchFilePatterns: [
         configFile,
@@ -58,7 +58,8 @@ try {
     // CRUD токенов.
     tokenRequest(createSdk, app);
 
-    instrumentsRequest();
+    // CRUD инструментов
+    instrumentsRequest(sdk, app);
 
     app.get('/order', async (req, res) => {
         const figi = req.params.figi;
