@@ -115,6 +115,13 @@ const getTokens = () => {
 };
 
 const tokenRequest = (createSdk, app) => {
+    // Ответ сервера, чтобы проверен что запущен.
+    app.get('*/check', (req, res) => {
+        return res
+            .status(200)
+            .json({ status: true });
+    });
+
     app.get('*/gettokens', async (req, res) => {
         try {
             return res
