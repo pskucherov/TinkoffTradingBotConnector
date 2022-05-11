@@ -227,7 +227,9 @@ try {
             }
 
             try {
-                return fs.mkdirSync(curDir);
+                fs.mkdirSync(curDir, { recursive: true });
+
+                return curDir;
             } catch (err) {
                 if (err.code === 'EEXIST') { // curDir already exists!
                     return curDir;
@@ -378,7 +380,7 @@ try {
             orderBookCompressorStr(obFileOrig, obFile);
         }
 
-        if (!obFileCache) {
+        if (!obFileCache && fs.existsSync(obFile)) {
             obFileCache = fs.readFileSync(obFile);
             obFileCache && (obFileCache = JSON.parse(obFileCache));
         }
