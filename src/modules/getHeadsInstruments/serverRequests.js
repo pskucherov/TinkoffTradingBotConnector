@@ -99,11 +99,11 @@ try {
         });
 
         app.get('/getcachedorderbook/:figi', async (req, res) => {
-            const figi = req.params.figi;
-            const time = req.query.time;
-            const bufOrderBookFile = path.resolve(__dirname, `../data/cachedorderbooks/${figi}/buf.json`);
-
             try {
+                const figi = req.params.figi;
+                const time = req.query.time;
+                const bufOrderBookFile = path.resolve(__dirname, `../data/cachedorderbooks/${figi}/buf.json`);
+
                 const fs = require('fs');
                 const file = fs.readFileSync(bufOrderBookFile, 'utf8');
 

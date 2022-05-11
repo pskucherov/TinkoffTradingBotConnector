@@ -5,6 +5,8 @@ const configFile = path.join(__dirname, './config.js');
 let config = require(configFile);
 const { logger, sdkLogger } = require('./modules/logger');
 const hmr = require('node-hmr');
+const { getCandles } = require('./modules/getHeadsInstruments');
+const { getOBFromFile } = require('./modules/orderBookProcessing');
 
 try {
     const { createSdk } = require('tinkoff-sdk-grpc-js');
@@ -60,6 +62,136 @@ try {
 
     // CRUD инструментов
     instrumentsRequest(sdk, app);
+
+    const { bots } = require('tradingbot');
+
+    // console.log(bots);
+
+    let robotStarted;
+
+    app.get('/robots/getnames', async (req, res) => {
+        try {
+            return res.json(Object.keys(bots));
+        } catch (err) {
+            logger(0, err);
+        }
+    });
+
+    app.get('/robots/start/:figi', async (req, res) => {
+        try {
+            if (robotStarted) {
+                return res.json(robotStarted);
+            }
+
+            const name = req.query.name;
+
+            if (bots[name]) {
+                robotStarted = {
+                    figi: req.params.figi,
+                    date: req.query.date,
+                    interval: req.query.interval,
+                    backtest: req.query.backtest,
+                    robot: new bots[name](),
+                    name,
+                };
+
+                robotStarted.robot.start();
+            }
+
+            return res.json(robotStarted);
+        } catch (err) {
+            logger(0, err);
+        }
+    });
+
+    const getCandlesToBacktest = async (sdk, figi, interval, date, step) => {
+        date = Number(date);
+        const from = new Date(date);
+        const to = new Date(date);
+
+        from.setHours(5, 0, 0, 0);
+        to.setHours(20, 59, 59, 999);
+
+        const { candles } = await getCandles(sdk, figi, interval, from.getTime(), to.getTime());
+
+        if (!candles || !candles.length) {
+            return;
+        }
+
+        return candles.slice(0, step);
+    };
+
+    const fs = require('fs');
+    let obFileCache;
+
+    // Стакан может браться только из закэшированных данных.
+    const getCachedOrderBook = (figi, date, step) => {
+        const localDate = new Date(Number(date)).toLocaleString(undefined, config.dateOptions);
+
+        const obFile = path.resolve(config.files.orderbookCacheDir, figi, localDate + 'compressedstr.json');
+
+        if (!obFileCache) {
+            obFileCache = fs.readFileSync(obFile);
+            obFileCache && (obFileCache = JSON.parse(obFileCache));
+        }
+
+        const ob = obFileCache;
+
+        if (ob && ob.length) {
+            return ob.slice(0, step);
+        }
+    };
+
+    app.get('/robots/backtest/step/:step', async (req, res) => {
+        try {
+            const step = Number(req.params.step);
+
+            if (!robotStarted || !step || step < 1) {
+                return res.status(404).end();
+            }
+
+            const {
+                figi, interval, date,
+            } = robotStarted;
+
+            if (!figi) {
+                return res.status(404).end();
+            }
+
+            const candles = await getCandlesToBacktest(sdk, figi, interval, date, step);
+            const orderbook = getCachedOrderBook(figi, date, step);
+
+            if (!candles && !orderbook) {
+                return res.status(404).end();
+            }
+
+            const lastPrice = candles && candles[candles.length - 1] && candles[candles.length - 1].close;
+
+            robotStarted.robot.setCurrentState(
+                lastPrice,
+                candles,
+                undefined,
+                undefined,
+                orderbook,
+            );
+
+            return res.json({});
+
+            // robotStarted.robot.
+        } catch (err) {
+            logger(0, err);
+        }
+    });
+
+    app.get('/robots/stop', async (req, res) => {
+        if (robotStarted && robotStarted.robot) {
+            robotStarted.robot.stop();
+        }
+
+        robotStarted = undefined;
+
+        return res.json({});
+    });
 
     app.get('/order', async (req, res) => {
         const figi = req.params.figi;

@@ -11,6 +11,7 @@ const tokens = path.join(__dirname, '../data/tokens.json');
 const futures = path.join(__dirname, '../data/futures.json');
 const shares = path.join(__dirname, '../data/shares.json');
 const candlesCacheDir = path.join(__dirname, '../data/cachedcandles');
+const orderbookCacheDir = path.join(__dirname, '../data/cachedorderbooks');
 
 module.exports = {
     blueChips: [
@@ -29,8 +30,10 @@ module.exports = {
         logsServer,
         logsApi,
         candlesCacheDir,
+        orderbookCacheDir,
     },
     defaultToken: '',
     appName: '',
     dateStr,
+    dateOptions,
 };

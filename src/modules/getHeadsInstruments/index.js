@@ -285,7 +285,8 @@ try {
      * Для текущего дня данные всегда без кэша
      *
      * @param {*} sdk
-     * @param {String[]} exchange
+     * @param {String} figi
+     * @param {Number} interval
      * @param {String} from
      * @param {?String} to
      * @returns
