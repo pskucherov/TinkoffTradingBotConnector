@@ -18,7 +18,7 @@ app.get('/logs/:type', async (req, res) => {
         }
     } else if (type === 'API') {
         try {
-            const data = fs.readFileSync(config.logsApi);
+            const data = fs.readFileSync(config.files.logsApi);
 
             res.send(data);
         } catch (error) {
