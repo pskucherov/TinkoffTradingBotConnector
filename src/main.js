@@ -5,7 +5,7 @@ const configFile = path.join(__dirname, './config.js');
 let config = require(configFile);
 const { logger, sdkLogger } = require('./modules/logger');
 const hmr = require('node-hmr');
-const { getCandles } = require('./modules/getHeadsInstruments');
+const { getCandles, getCachedOrderBook } = require('./modules/getHeadsInstruments');
 const { getOBFromFile } = require('./modules/orderBookProcessing');
 
 try {
@@ -84,18 +84,24 @@ try {
             }
 
             const name = req.query.name;
+            const backtest = req.query.backtest;
+            const robot = new bots[name]();
 
             if (bots[name]) {
                 robotStarted = {
                     figi: req.params.figi,
                     date: req.query.date,
                     interval: req.query.interval,
-                    backtest: req.query.backtest,
-                    robot: new bots[name](),
+                    robot,
+                    backtest,
                     name,
                 };
 
                 robotStarted.robot.start();
+
+                if (backtest) {
+                    robot.setBacktestState(0, req.query.interval, req.params.figi);
+                }
             }
 
             return res.json(robotStarted);
@@ -121,27 +127,6 @@ try {
         return candles.slice(0, step);
     };
 
-    const fs = require('fs');
-    let obFileCache;
-
-    // Стакан может браться только из закэшированных данных.
-    const getCachedOrderBook = (figi, date, step) => {
-        const localDate = new Date(Number(date)).toLocaleString(undefined, config.dateOptions);
-
-        const obFile = path.resolve(config.files.orderbookCacheDir, figi, localDate + 'compressedstr.json');
-
-        if (!obFileCache) {
-            obFileCache = fs.readFileSync(obFile);
-            obFileCache && (obFileCache = JSON.parse(obFileCache));
-        }
-
-        const ob = obFileCache;
-
-        if (ob && ob.length) {
-            return ob.slice(0, step);
-        }
-    };
-
     app.get('/robots/backtest/step/:step', async (req, res) => {
         try {
             const step = Number(req.params.step);
@@ -151,12 +136,14 @@ try {
             }
 
             const {
-                figi, interval, date,
+                robot, figi, interval, date,
             } = robotStarted;
 
-            if (!figi) {
+            if (!robot) {
                 return res.status(404).end();
             }
+
+            robot.setBacktestState(step);
 
             const candles = await getCandlesToBacktest(sdk, figi, interval, date, step);
             const orderbook = getCachedOrderBook(figi, date, step);
@@ -181,6 +168,14 @@ try {
         } catch (err) {
             logger(0, err);
         }
+    });
+
+    app.get('/robots/status', async (req, res) => {
+        if (robotStarted && robotStarted.robot) {
+            return res.json(robotStarted.robot.getBacktestState());
+        }
+
+        return res.status(404).end();
     });
 
     app.get('/robots/stop', async (req, res) => {

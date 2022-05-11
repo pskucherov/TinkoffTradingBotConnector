@@ -40,8 +40,8 @@ try {
         fs.writeFileSync(bufOrderBookFile, JSON.stringify(newOrderBook));
     };
 
-    const orderBookCompressorStr = () => {
-        const ob = getOBFromFile(demoOrderBookFile);
+    const orderBookCompressorStr = (filename, newFilename) => {
+        const ob = getOBFromFile(filename);
 
         const newOrderBook = {};
         const newOrderBookStrTime = [];
@@ -68,17 +68,17 @@ try {
             };
         });
 
-        fs.writeFileSync(bufOrderBookFileStr, JSON.stringify(
+        fs.writeFileSync(newFilename, JSON.stringify(
             newOrderBookStrTime.map(time => newOrderBook[time]),
         ));
     };
 
     // orderBookCompressor();
-    orderBookCompressorStr();
+    // orderBookCompressorStr();
 
     module.exports = {
         getOBFromFile,
-        orderBookCompressor,
+        orderBookCompressorStr,
     };
 } catch (error) {
     logger(0, error);

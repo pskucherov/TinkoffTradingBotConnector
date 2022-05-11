@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const config = require('../../config');
 const { logger } = require('../logger');
+const { orderBookCompressorStr } = require('../orderBookProcessing');
 
 try {
     const getFuturesFromFile = () => {
@@ -325,6 +326,17 @@ try {
         return candles;
     };
 
+    const getLastPriceAndOrderBook = async (sdk, figi) => {
+        const lastPrice = await sdk.marketData.getLastPrices({ figi: [figi] });
+
+        const orderBook = await sdk.marketData.getOrderBook({
+            figi,
+            depth: 50,
+        });
+
+        return [lastPrice, orderBook];
+    };
+
     /**
      * Получить инструмент, найдя его в сущестующих данных.
      * TODO: в идеале брать по ключу и не перебирать весь json каждый раз.
@@ -354,6 +366,30 @@ try {
         }
     };
 
+    // Стакан может браться только из закэшированных данных.
+    const getCachedOrderBook = (figi, date, step) => {
+        const localDate = new Date(Number(date)).toLocaleString(undefined, config.dateOptions);
+        let obFileCache;
+
+        const obFileOrig = path.resolve(config.files.orderbookCacheDir, figi, localDate + '.json');
+        const obFile = path.resolve(config.files.orderbookCacheDir, figi, localDate + 'compressedstr.json');
+
+        if (fs.existsSync(obFileOrig) && !fs.existsSync(obFile)) {
+            orderBookCompressorStr(obFileOrig, obFile);
+        }
+
+        if (!obFileCache) {
+            obFileCache = fs.readFileSync(obFile);
+            obFileCache && (obFileCache = JSON.parse(obFileCache));
+        }
+
+        const ob = obFileCache;
+
+        if (ob && ob.length) {
+            return step ? ob.slice(0, step) : ob;
+        }
+    };
+
     module.exports = {
         getFutures,
         updateFutures,
@@ -368,6 +404,9 @@ try {
         getCandles,
 
         getTradingSchedules,
+        getCachedOrderBook,
+
+        getLastPriceAndOrderBook,
     };
 } catch (error) {
     logger(0, error);

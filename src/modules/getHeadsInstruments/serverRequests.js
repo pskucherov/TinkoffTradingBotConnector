@@ -1,10 +1,13 @@
 const path = require('path');
 const { logger } = require('../logger');
+const fs = require('fs');
 
 const { accountsRequest } = require('../accounts');
 const { getFutures, getShares, getBlueChipsShares,
     getBlueChipsFutures, getFigiData, getTradingSchedules,
-    getCandles } = require('./index');
+    getCandles,
+    getCachedOrderBook,
+    getLastPriceAndOrderBook } = require('./index');
 
 try {
     // Получение списка фьючерсов и акций, если их нет.
@@ -98,20 +101,43 @@ try {
             }
         });
 
+        app.get('/getlastpriceandorderbook/:figi', async (req, res) => {
+            const figi = req.params.figi;
+
+            try {
+                return res
+                    .json(await getLastPriceAndOrderBook(sdk.sdk, figi));
+            } catch (error) {
+                logger(0, error, res);
+            }
+        });
+
         app.get('/getcachedorderbook/:figi', async (req, res) => {
             try {
                 const figi = req.params.figi;
                 const time = req.query.time;
-                const bufOrderBookFile = path.resolve(__dirname, `../data/cachedorderbooks/${figi}/buf.json`);
+                const date = time ? Number(time) : new Date().getTime();
 
-                const fs = require('fs');
-                const file = fs.readFileSync(bufOrderBookFile, 'utf8');
+                // const bufOrderBookFile = path.resolve(__dirname, `../data/cachedorderbooks/${figi}/${figi}compressedstr.json`);
 
-                if (!file) {
+                // const isFileExists = fs.existsSync(filePath);
+                // if (!isFileExists) {
+
+                // }
+
+                // const file = fs.readFileSync(bufOrderBookFile, 'utf8');
+
+                // if (!file) {
+                //     return res.status(404).end();
+                // }
+
+                // const data = JSON.parse(file);
+
+                const data = getCachedOrderBook(figi, date);
+
+                if (!data) {
                     return res.status(404).end();
                 }
-
-                const data = JSON.parse(file);
 
                 if (!time) {
                     return res
