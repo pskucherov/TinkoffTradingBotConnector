@@ -65,8 +65,6 @@ try {
 
     const { bots } = require('tradingbot');
 
-    // console.log(bots);
-
     let robotStarted;
 
     app.get('/robots/getnames', async (req, res) => {
@@ -77,23 +75,86 @@ try {
         }
     });
 
+    const lastPriceSubscribe = (sdk, figi) => {
+        try {
+            const { marketDataStream, SubscriptionAction, MarketDataRequest } = sdk.sdk;
+
+            function getCreateSubscriptionLastPriceRequest() {
+                return MarketDataRequest.fromJSON({
+                    subscribeLastPriceRequest: {
+                        subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
+                        instruments: [{ figi }],
+                    },
+                });
+            }
+
+            return [
+                marketDataStream.marketDataStream,
+                getCreateSubscriptionLastPriceRequest,
+            ];
+        } catch {}
+    };
+
     app.get('/robots/start/:figi', async (req, res) => {
         try {
             if (robotStarted) {
                 return res.json(robotStarted);
             }
 
+            const { orders } = sdk.sdk;
+
             const name = req.query.name;
             const backtest = req.query.backtest;
-            const robot = new bots[name]();
+            const robot = new bots[name](
+                req.query.accountId,
+                Number(req.query.adviser),
+                Number(req.query.backtest),
+                {
+                    subscribes: {
+                        lastPrice: lastPriceSubscribe(sdk, req.params.figi),
+                    },
+                    postOrder: async (accountId, figi, quantity, price, direction, orderType, orderId) => { // eslint-disable-line max-params
+                        try {
+                            // console.log({
+                            //     accountId,
+                            //     figi,
+                            //     quantity,
+                            //     price,
+                            //     direction, // OrderDirection.ORDER_DIRECTION_BUY,
+                            //     orderType, // OrderType.ORDER_TYPE_LIMIT,
+                            //     orderId, //: 'abc-fsdfdsfsdf-2',
+                            // });
+                            // console.log('^my');
+
+                            return await orders.postOrder({
+                                accountId,
+                                figi,
+                                quantity,
+                                price,
+                                direction, // OrderDirection.ORDER_DIRECTION_BUY,
+                                orderType, // OrderType.ORDER_TYPE_LIMIT,
+                                orderId, //: 'abc-fsdfdsfsdf-2',
+                            });
+                        } catch {}
+                    },
+                    getOrders: async accountId => {
+                        try {
+                            return await orders.getOrders({
+                                accountId,
+                            });
+                        } catch (e) {}
+                    },
+                },
+            );
 
             if (bots[name]) {
                 robotStarted = {
-                    figi: req.params.figi,
-                    date: req.query.date,
-                    interval: req.query.interval,
+                    // figi: req.params.figi,
+                    // date: req.query.date,
+                    // interval: req.query.interval,
                     robot,
-                    backtest,
+
+                    // backtest,
                     name,
                 };
 
