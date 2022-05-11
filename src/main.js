@@ -1,7 +1,7 @@
 const path = require('path');
 const chokidar = require('chokidar');
 const configFile = path.join(__dirname, './config.js');
-const utils = require('./utils');
+const logsRequest = require('./logsRequest');
 
 let config = require(configFile);
 const { logger, sdkLogger } = require('./modules/logger');
