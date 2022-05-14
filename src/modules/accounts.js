@@ -52,6 +52,19 @@ const accountsRequest = (sdkObj, app) => {
         }
     });
 
+    app.get('/getbalance', async (req, res) => {
+        const { sdk } = sdkObj;
+        const id = req.query.id;
+
+        try {
+            return res.json(await sdk.operations.getPortfolio({
+                accountId: id,
+            }));
+        } catch (error) {
+            logger(0, error, res);
+        }
+    });
+
     app.get('/selectaccount', async (req, res) => {
         try {
             // Запрашиваем токен каждый раз, т.к. мог поменяться.
