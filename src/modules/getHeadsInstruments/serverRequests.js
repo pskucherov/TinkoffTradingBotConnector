@@ -138,17 +138,8 @@ try {
                     return res.status(404).end();
                 }
 
-                if (!time) {
-                    return res
-                        .json(data);
-                }
-
-                if (!data[time]) {
-                    return res.status(404).end();
-                }
-
                 return res
-                    .json(data[time]);
+                    .json(data);
             } catch (error) {
                 logger(0, error, res);
             }

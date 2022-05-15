@@ -17,6 +17,16 @@ try {
             marketDataStream,
             SubscriptionAction,
             MarketDataRequest,
+
+            CandleInterval,
+
+            InstrumentStatus,
+            InstrumentIdType,
+
+            SubscriptionInterval,
+
+            OrderDirection,
+            OrderType,
         } = sdkObj.sdk;
 
         const lastPriceSubscribe = figi => {
@@ -96,9 +106,9 @@ try {
             } catch (e) { logger(1, e) }
         };
 
-        const cacheState = (name, figi, time, lastPrice, orderBook) => {
+        const cacheState = (figi, time, lastPrice, orderBook) => {
             try {
-                const fileName = getRobotStateCachePath(name, figi, time);
+                const fileName = getRobotStateCachePath(figi, time);
 
                 // Здесь логично поставить или,
                 // но lastPrice приходит и в выходные.
@@ -178,7 +188,7 @@ try {
                             lastPrice: lastPriceSubscribe(req.params.figi),
                             orderbook: orderBookSubscribe(req.params.figi),
                         },
-                        cacheState: cacheState.bind(null, name),
+                        cacheState,
                         postOrder,
                         getOrders,
                         cancelOrder,
@@ -186,6 +196,15 @@ try {
                         getPositions,
                         getOperations,
                     },
+                    { enums: {
+                        CandleInterval,
+
+                        InstrumentStatus,
+                        InstrumentIdType,
+                        SubscriptionInterval,
+                        OrderDirection,
+                        OrderType,
+                    } },
                 );
 
                 if (bots[name]) {
@@ -233,7 +252,9 @@ try {
                 robot.setBacktestState(step);
 
                 const candles = await getCandlesToBacktest(figi, interval, date, step);
-                const orderbook = getCachedOrderBook(figi, date, step);
+
+                // TODO: брать по времени свечи, а не шагу
+                const orderbook = getCachedOrderBook(figi, date);
 
                 if (!candles && !orderbook) {
                     return res.status(404).end();
@@ -249,7 +270,10 @@ try {
                     orderbook,
                 );
 
-                return res.json({});
+                //setTimeout(() => {
+                return res.json(robotStarted.robot.getPositions());
+
+                //}, (robotStarted.robot.getParams['timer'] + 50));
 
                 // robotStarted.robot.
             } catch (err) {

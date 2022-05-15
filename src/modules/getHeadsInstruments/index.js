@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const config = require('../../config');
 const { logger } = require('../logger');
-const { orderBookCompressorStr } = require('../orderBookProcessing');
+const { orderBookCompressor } = require('../orderBookProcessing');
 
 try {
     const getFuturesFromFile = () => {
@@ -251,13 +251,13 @@ try {
         }, initDir);
     };
 
-    const getRobotStateCachePath = (name, figi, date) => {
-        const dir = mkDirByPathSync(path.join(config.files.orderbookCacheDir, figi, name));
+    const getRobotStateCachePath = (figi, date, compressed) => {
+        const dir = mkDirByPathSync(path.join(config.files.orderbookCacheDir, figi));
 
         if (dir) {
             const localDate = new Date(Number(date)).toLocaleString(undefined, config.dateOptions);
 
-            return path.join(dir, `${localDate}.json`);
+            return path.join(dir, `${localDate}` + (compressed ? 'compressed' : '') + '.json');
         }
     };
 
@@ -383,15 +383,17 @@ try {
     };
 
     // Стакан может браться только из закэшированных данных.
-    const getCachedOrderBook = (figi, date, step) => {
+    const getCachedOrderBook = (figi, date) => {
         const localDate = new Date(Number(date)).toLocaleString(undefined, config.dateOptions);
+        const nowDate = new Date().toLocaleString(undefined, config.dateOptions);
         let obFileCache;
 
-        const obFileOrig = path.resolve(config.files.orderbookCacheDir, figi, localDate + '.json');
-        const obFile = path.resolve(config.files.orderbookCacheDir, figi, localDate + 'compressedstr.json');
+        const obFileOrig = getRobotStateCachePath(figi, date); // path.resolve(config.files.orderbookCacheDir, figi, localDate + '.json');
+        const obFile = getRobotStateCachePath(figi, date, 1); // path.resolve(config.files.orderbookCacheDir, figi, localDate + '.json');
+        // const obFile = path.resolve(config.files.orderbookCacheDir, figi, localDate + 'compressedstr.json');
 
-        if (fs.existsSync(obFileOrig) && !fs.existsSync(obFile)) {
-            orderBookCompressorStr(obFileOrig, obFile);
+        if (fs.existsSync(obFileOrig) && (localDate === nowDate || !fs.existsSync(obFile))) {
+            obFileCache = orderBookCompressor(obFileOrig, obFile);
         }
 
         if (!obFileCache && fs.existsSync(obFile)) {
@@ -399,10 +401,13 @@ try {
             obFileCache && (obFileCache = JSON.parse(obFileCache));
         }
 
-        const ob = obFileCache;
+        const key = new Date(Number(date));
 
-        if (ob && ob.length) {
-            return step ? ob.slice(0, step) : ob;
+        key.setMilliseconds(0);
+        key.setSeconds(0);
+
+        if (obFileCache) {
+            return obFileCache[key.getTime()];
         }
     };
 

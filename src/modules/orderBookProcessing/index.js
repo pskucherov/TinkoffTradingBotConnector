@@ -14,37 +14,10 @@ try {
         return file && file.split('\r\n');
     };
 
-    const orderBookCompressor = () => {
-        const ob = getOBFromFile(demoOrderBookFile);
-
-        const newOrderBook = {};
-
-        ob.forEach(s => {
-            if (!s) {
-                return;
-            }
-
-            const oneString = JSON.parse(s);
-            const t = new Date(oneString.time);
-
-            t.setMilliseconds(0);
-            t.setSeconds(0);
-
-            newOrderBook[t.getTime()] = {
-                ...oneString,
-                time: t.getTime(),
-                figi: undefined,
-            };
-        });
-
-        fs.writeFileSync(bufOrderBookFile, JSON.stringify(newOrderBook));
-    };
-
-    const orderBookCompressorStr = (filename, newFilename) => {
+    const orderBookCompressor = (filename, newFilename) => {
         const ob = getOBFromFile(filename);
 
         const newOrderBook = {};
-        const newOrderBookStrTime = [];
 
         ob.forEach(s => {
             if (!s) {
@@ -52,33 +25,70 @@ try {
             }
 
             const oneString = JSON.parse(s);
-            const t = new Date(oneString.time);
+
+            if (!oneString[0] || !oneString[1]) {
+                return;
+            }
+
+            const t = new Date(oneString[1].time);
 
             t.setMilliseconds(0);
             t.setSeconds(0);
 
-            if (!newOrderBook[t.getTime()]) {
-                newOrderBookStrTime.push(t.getTime());
-            }
-
             newOrderBook[t.getTime()] = {
-                ...oneString,
+                ...oneString[1],
                 time: t.getTime(),
                 figi: undefined,
+                lastPrice: oneString[0],
             };
         });
 
-        fs.writeFileSync(newFilename, JSON.stringify(
-            newOrderBookStrTime.map(time => newOrderBook[time]),
-        ));
+        fs.writeFileSync(newFilename, JSON.stringify(newOrderBook));
+
+        return newOrderBook;
     };
+
+    // const orderBookCompressorStr = (filename, newFilename) => {
+    //     const ob = getOBFromFile(filename);
+
+    //     const newOrderBook = {};
+    //     const newOrderBookStrTime = [];
+
+    //     ob.forEach(s => {
+    //         if (!s) {
+    //             return;
+    //         }
+
+    //         const oneString = JSON.parse(s);
+    //         const t = new Date(oneString.time);
+
+    //         t.setMilliseconds(0);
+    //         t.setSeconds(0);
+
+    //         if (!newOrderBook[t.getTime()]) {
+    //             newOrderBookStrTime.push(t.getTime());
+    //         }
+
+    //         newOrderBook[t.getTime()] = {
+    //             ...oneString,
+    //             time: t.getTime(),
+    //             figi: undefined,
+    //         };
+    //     });
+
+    //     fs.writeFileSync(newFilename, JSON.stringify(
+    //         newOrderBookStrTime.map(time => newOrderBook[time]),
+    //     ));
+    // };
 
     // orderBookCompressor();
     // orderBookCompressorStr();
 
     module.exports = {
         getOBFromFile,
-        orderBookCompressorStr,
+
+        // orderBookCompressorStr,
+        orderBookCompressor,
     };
 } catch (error) {
     logger(0, error);
