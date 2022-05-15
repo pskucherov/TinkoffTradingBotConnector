@@ -1,8 +1,7 @@
-const fs = require('fs');
+const { app } = require('./server');
 
 const { logger } = require('./logger');
 const { addAccountIdToToken, getSelectedToken } = require('./tokens');
-const config = require('../config');
 
 /**
  * Получить расписание торгов.
@@ -37,7 +36,7 @@ const getAccounts = async (sdk, isSandbox) => {
     return accounts;
 };
 
-const accountsRequest = (sdkObj, app) => {
+const accountsRequest = sdkObj => {
     app.get('/getaccounts', async (req, res) => {
         const { sdk } = sdkObj;
 

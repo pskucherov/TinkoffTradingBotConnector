@@ -1,6 +1,5 @@
-const path = require('path');
 const { logger } = require('../logger');
-const fs = require('fs');
+const { app } = require('../server');
 
 const { accountsRequest } = require('../accounts');
 const { getFutures, getShares, getBlueChipsShares,
@@ -14,7 +13,7 @@ try {
     // Устанавливает crud для аккаунтов.
     // Выполняется один раз при старте сервера после добавления токена.
     let prepared = false;
-    const prepareServer = async (sdk, app) => {
+    const prepareServer = async sdk => {
         if (prepared) {
             return;
         }
@@ -32,13 +31,13 @@ try {
 
             // CRUD аккаунтов. Здесь вместо sdk передаём весь объект,
             // а содержимое берём каждый раз при запросе.
-            accountsRequest(sdk, app);
+            accountsRequest(sdk);
         } else {
             logger(0, 'Укажите token для старта сервера.');
         }
     };
 
-    const instrumentsRequest = (sdk, app) => {
+    const instrumentsRequest = sdk => {
         app.get('/bluechipsshares', (req, res) => {
             try {
                 return res

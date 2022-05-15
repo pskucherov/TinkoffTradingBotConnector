@@ -4,6 +4,8 @@ const { logger } = require('./logger');
 const config = require('../config');
 const fileName = config.files.tokens;
 
+const { app } = require('./server');
+
 /**
  * Выставляет маркер выбранного токена.
  *
@@ -114,7 +116,7 @@ const getTokens = () => {
     return JSON.parse(fs.readFileSync(fileName, 'utf8'));
 };
 
-const tokenRequest = (createSdk, app) => {
+const tokenRequest = createSdk => {
     // Ответ сервера, чтобы проверен что запущен.
     app.get('*/check', (req, res) => {
         return res

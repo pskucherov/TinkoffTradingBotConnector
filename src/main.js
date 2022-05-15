@@ -1,13 +1,14 @@
 const path = require('path');
 const chokidar = require('chokidar');
 const configFile = path.join(__dirname, './config.js');
-const logsRequest = require('./logsRequest');
+const fs = require('fs');
 
 let config = require(configFile);
 const { logger, sdkLogger } = require('./modules/logger');
 const hmr = require('node-hmr');
-const { getCandles, getCachedOrderBook } = require('./modules/getHeadsInstruments');
-const { getOBFromFile } = require('./modules/orderBookProcessing');
+const { getCandles, getCachedOrderBook, getRobotStateCachePath } = require('./modules/getHeadsInstruments');
+const { getFromMorning, getToEvening } = require('./modules/utils');
+const { robotConnector } = require('./modules/robotConnecter');
 
 try {
     const { createSdk } = require('tinkoff-sdk-grpc-js');
@@ -17,7 +18,7 @@ try {
     const { prepareServer, instrumentsRequest } = require('./modules/getHeadsInstruments/serverRequests');
 
     // TODO: изменить руками или в процессе создания робота.
-    const appName = config.appName || 'pskucherov.tinkofftradingbot';
+    let appName = config.appName || 'pskucherov.tinkofftradingbot';
 
     // Сохрянем sdk в объект для hmr, чтобы после смены токена ссылка на sdk сохранялась.
     const sdk = { sdk: undefined };
@@ -35,7 +36,7 @@ try {
                 token = tokenFromJson;
                 sdk.sdk = createSdk(token, appName, sdkLogger);
 
-                prepareServer(sdk, app);
+                prepareServer(sdk);
             }
         });
 
@@ -43,10 +44,12 @@ try {
     hmr(() => {
         config = require(configFile);
         token = tokenFromJson || config.defaultToken;
+        appName = config.appName || 'pskucherov.tinkofftradingbot';
+
         if (token) {
             sdk.sdk = createSdk(token, appName, sdkLogger);
 
-            prepareServer(sdk, app);
+            prepareServer(sdk);
         }
     }, { watchFilePatterns: [
         configFile,
@@ -58,197 +61,16 @@ try {
         sdk.sdk = createSdk(token, appName, sdkLogger);
     }
 
+    // Отдаёт логи на клиент.
+    require('./modules/logsRequest');
+
     // CRUD токенов.
-    tokenRequest(createSdk, app);
+    tokenRequest(createSdk);
 
-    // CRUD инструментов
-    instrumentsRequest(sdk, app);
+    // CRUD инструментов.
+    instrumentsRequest(sdk);
 
-    const { bots } = require('tradingbot');
-
-    let robotStarted;
-
-    app.get('/robots/getnames', async (req, res) => {
-        try {
-            return res.json(Object.keys(bots));
-        } catch (err) {
-            logger(0, err);
-        }
-    });
-
-    const lastPriceSubscribe = (sdk, figi) => {
-        try {
-            const { marketDataStream, SubscriptionAction, MarketDataRequest } = sdk.sdk;
-
-            function getCreateSubscriptionLastPriceRequest() {
-                return MarketDataRequest.fromJSON({
-                    subscribeLastPriceRequest: {
-                        subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
-                        instruments: [{ figi }],
-                    },
-                });
-            }
-
-            return [
-                marketDataStream.marketDataStream,
-                getCreateSubscriptionLastPriceRequest,
-            ];
-        } catch {}
-    };
-
-    app.get('/robots/start/:figi', async (req, res) => {
-        try {
-            if (robotStarted) {
-                return res.json(robotStarted);
-            }
-
-            const { orders } = sdk.sdk;
-
-            const name = req.query.name;
-            const backtest = req.query.backtest;
-            const robot = new bots[name](
-                req.query.accountId,
-                Number(req.query.adviser),
-                Number(req.query.backtest),
-                {
-                    subscribes: {
-                        lastPrice: lastPriceSubscribe(sdk, req.params.figi),
-                    },
-                    postOrder: async (accountId, figi, quantity, price, direction, orderType, orderId) => { // eslint-disable-line max-params
-                        try {
-                            // console.log({
-                            //     accountId,
-                            //     figi,
-                            //     quantity,
-                            //     price,
-                            //     direction, // OrderDirection.ORDER_DIRECTION_BUY,
-                            //     orderType, // OrderType.ORDER_TYPE_LIMIT,
-                            //     orderId, //: 'abc-fsdfdsfsdf-2',
-                            // });
-                            // console.log('^my');
-
-                            return await orders.postOrder({
-                                accountId,
-                                figi,
-                                quantity,
-                                price,
-                                direction, // OrderDirection.ORDER_DIRECTION_BUY,
-                                orderType, // OrderType.ORDER_TYPE_LIMIT,
-                                orderId, //: 'abc-fsdfdsfsdf-2',
-                            });
-                        } catch {}
-                    },
-                    getOrders: async accountId => {
-                        try {
-                            return await orders.getOrders({
-                                accountId,
-                            });
-                        } catch (e) {}
-                    },
-                },
-            );
-
-            if (bots[name]) {
-                robotStarted = {
-                    // figi: req.params.figi,
-                    // date: req.query.date,
-                    // interval: req.query.interval,
-                    robot,
-
-                    // backtest,
-                    name,
-                };
-
-                robotStarted.robot.start();
-
-                if (backtest) {
-                    robot.setBacktestState(0, req.query.interval, req.params.figi);
-                }
-            }
-
-            return res.json(robotStarted);
-        } catch (err) {
-            logger(0, err);
-        }
-    });
-
-    const getCandlesToBacktest = async (sdk, figi, interval, date, step) => {
-        date = Number(date);
-        const from = new Date(date);
-        const to = new Date(date);
-
-        from.setHours(5, 0, 0, 0);
-        to.setHours(20, 59, 59, 999);
-
-        const { candles } = await getCandles(sdk, figi, interval, from.getTime(), to.getTime());
-
-        if (!candles || !candles.length) {
-            return;
-        }
-
-        return candles.slice(0, step);
-    };
-
-    app.get('/robots/backtest/step/:step', async (req, res) => {
-        try {
-            const step = Number(req.params.step);
-
-            if (!robotStarted || !step || step < 1) {
-                return res.status(404).end();
-            }
-
-            const {
-                robot, figi, interval, date,
-            } = robotStarted;
-
-            if (!robot) {
-                return res.status(404).end();
-            }
-
-            robot.setBacktestState(step);
-
-            const candles = await getCandlesToBacktest(sdk, figi, interval, date, step);
-            const orderbook = getCachedOrderBook(figi, date, step);
-
-            if (!candles && !orderbook) {
-                return res.status(404).end();
-            }
-
-            const lastPrice = candles && candles[candles.length - 1] && candles[candles.length - 1].close;
-
-            robotStarted.robot.setCurrentState(
-                lastPrice,
-                candles,
-                undefined,
-                undefined,
-                orderbook,
-            );
-
-            return res.json({});
-
-            // robotStarted.robot.
-        } catch (err) {
-            logger(0, err);
-        }
-    });
-
-    app.get('/robots/status', async (req, res) => {
-        if (robotStarted && robotStarted.robot) {
-            return res.json(robotStarted.robot.getBacktestState());
-        }
-
-        return res.status(404).end();
-    });
-
-    app.get('/robots/stop', async (req, res) => {
-        if (robotStarted && robotStarted.robot) {
-            robotStarted.robot.stop();
-        }
-
-        robotStarted = undefined;
-
-        return res.json({});
-    });
+    robotConnector(sdk);
 
     app.get('/order', async (req, res) => {
         const figi = req.params.figi;

@@ -251,7 +251,17 @@ try {
         }, initDir);
     };
 
-    const getCacheCanglesPath = (figi, interval, from, to) => {
+    const getRobotStateCachePath = (name, figi, date) => {
+        const dir = mkDirByPathSync(path.join(config.files.orderbookCacheDir, figi, name));
+
+        if (dir) {
+            const localDate = new Date(Number(date)).toLocaleString(undefined, config.dateOptions);
+
+            return path.join(dir, `${localDate}.json`);
+        }
+    };
+
+    const getCacheCandlesPath = (figi, interval, from, to) => {
         const dir = mkDirByPathSync(path.join(config.files.candlesCacheDir, figi, interval));
 
         if (dir) {
@@ -295,6 +305,8 @@ try {
      * @returns
      */
     const getCandles = async (sdk, figi, interval, from, to) => {
+        const { marketData } = sdk.sdk || sdk;
+
         let candles;
 
         from = new Date(Number(from));
@@ -303,10 +315,10 @@ try {
         // Сейчас все свечи запрашиваются по дням.
         // Если надо будет по часам, то здесь надо переделывать.
         const useCache = to < new Date();
-        let filePath = useCache && getCacheCanglesPath(figi, interval, from, to);
+        let filePath = useCache && getCacheCandlesPath(figi, interval, from, to);
 
         if (useCache && filePath && fs.existsSync(filePath)) {
-            filePath = getCacheCanglesPath(figi, interval, from, to);
+            filePath = getCacheCandlesPath(figi, interval, from, to);
             candles = getCandlesFromCache(filePath);
 
             if (candles) {
@@ -314,7 +326,7 @@ try {
             }
         }
 
-        candles = await sdk.marketData.getCandles({
+        candles = await marketData.getCandles({
             figi,
             from,
             to,
@@ -329,9 +341,11 @@ try {
     };
 
     const getLastPriceAndOrderBook = async (sdk, figi) => {
-        const lastPrice = await sdk.marketData.getLastPrices({ figi: [figi] });
+        const { marketData } = sdk.sdk || sdk;
 
-        const orderBook = await sdk.marketData.getOrderBook({
+        const lastPrice = await marketData.getLastPrices({ figi: [figi] });
+
+        const orderBook = await marketData.getOrderBook({
             figi,
             depth: 50,
         });
@@ -409,6 +423,7 @@ try {
         getCachedOrderBook,
 
         getLastPriceAndOrderBook,
+        getRobotStateCachePath,
     };
 } catch (error) {
     logger(0, error);
