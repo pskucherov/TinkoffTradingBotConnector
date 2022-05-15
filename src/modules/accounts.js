@@ -54,14 +54,14 @@ const accountsRequest = (sdkObj, app) => {
 
     app.get('/getbalance', async (req, res) => {
         const { sdk } = sdkObj;
-        const id = req.query.id;
+        const accountId = req.query.id;
 
         try {
             return res.json(await sdk.operations.getPortfolio({
-                accountId: id,
+                accountId: accountId,
             }));
         } catch (error) {
-            logger(0, error, res);
+            logger(1, error, res);
         }
     });
 
