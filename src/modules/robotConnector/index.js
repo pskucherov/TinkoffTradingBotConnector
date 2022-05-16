@@ -10,7 +10,11 @@ const { getFromMorning, getToEvening } = require('../utils');
 let robotStarted;
 
 try {
-    const robotConnector = sdkObj => {
+    const robotConnector = sdkObj => { // eslint-disable-line
+        if (!sdkObj.sdk) {
+            return;
+        }
+
         const {
             orders,
             operations,

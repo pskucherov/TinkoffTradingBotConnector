@@ -255,7 +255,7 @@ try {
         const dir = mkDirByPathSync(path.join(config.files.orderbookCacheDir, figi));
 
         if (dir) {
-            const localDate = new Date(Number(date)).toLocaleString(undefined, config.dateOptions);
+            const localDate = new Date(Number(date)).toLocaleString('ru', config.dateOptions);
 
             return path.join(dir, `${localDate}` + (compressed ? 'compressed' : '') + '.json');
         }
@@ -384,8 +384,8 @@ try {
 
     // Стакан может браться только из закэшированных данных.
     const getCachedOrderBook = (figi, date) => {
-        const localDate = new Date(Number(date)).toLocaleString(undefined, config.dateOptions);
-        const nowDate = new Date().toLocaleString(undefined, config.dateOptions);
+        const localDate = new Date(Number(date)).toLocaleString('ru', config.dateOptions);
+        const nowDate = new Date().toLocaleString('ru', config.dateOptions);
         let obFileCache;
 
         const obFileOrig = getRobotStateCachePath(figi, date); // path.resolve(config.files.orderbookCacheDir, figi, localDate + '.json');

@@ -2,7 +2,7 @@ const path = require('path');
 
 // Логи ошибок пишутся отдельно для TinkoffApi и http сервера.
 const dateOptions = { year: 'numeric', month: 'numeric', day: 'numeric' };
-const dateStr = new Date().toLocaleString(undefined, dateOptions);
+const dateStr = new Date().toLocaleString('ru', dateOptions);
 
 const logsServer = path.join(__dirname, `../logs/server/${dateStr}.txt`);
 const logsApi = path.join(__dirname, `../logs/api/${dateStr}.txt`);

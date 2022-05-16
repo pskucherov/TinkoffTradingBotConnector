@@ -34,6 +34,7 @@ try {
                 sdk.sdk = createSdk(token, appName, sdkLogger);
 
                 prepareServer(sdk);
+                robotConnector(sdk);
             }
         });
 
@@ -47,6 +48,7 @@ try {
             sdk.sdk = createSdk(token, appName, sdkLogger);
 
             prepareServer(sdk);
+            robotConnector(sdk);
         }
     }, { watchFilePatterns: [
         configFile,
@@ -66,8 +68,6 @@ try {
 
     // CRUD инструментов.
     instrumentsRequest(sdk);
-
-    robotConnector(sdk);
 } catch (error) {
     logger(0, error);
 }
