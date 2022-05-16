@@ -4,7 +4,7 @@ const { logger } = require('../logger');
 const fs = require('fs');
 
 const { bots } = require('tradingbot');
-const { getCandles, getCachedOrderBook, getRobotStateCachePath } = require('../getHeadsInstruments');
+const { getCandles, getCachedOrderBook, getRobotStateCachePath, getFigiData } = require('../getHeadsInstruments');
 const { getFromMorning, getToEvening } = require('../utils');
 
 let robotStarted;
@@ -31,6 +31,8 @@ try {
 
             OrderDirection,
             OrderType,
+
+            ordersStream,
         } = sdkObj.sdk;
 
         const lastPriceSubscribe = figi => {
@@ -66,6 +68,12 @@ try {
             }
 
             return candles.slice(0, step);
+        };
+
+        const orderStreamSubscribe = async accountId => {
+            return ordersStream.tradesStream({
+                accounts: [accountId],
+            });
         };
 
         const postOrder = async (accountId, figi, quantity, price, direction, orderType, orderId) => { // eslint-disable-line max-params
@@ -182,7 +190,7 @@ try {
                 }
 
                 const name = req.query.name;
-                const backtest = req.query.backtest;
+                const backtest = Number(req.query.backtest);
                 const robot = new bots[name](
                     req.query.accountId,
                     Number(req.query.adviser),
@@ -191,6 +199,7 @@ try {
                         subscribes: {
                             lastPrice: lastPriceSubscribe(req.params.figi),
                             orderbook: orderBookSubscribe(req.params.figi),
+                            orders: orderStreamSubscribe,
                         },
                         cacheState,
                         postOrder,
@@ -222,10 +231,14 @@ try {
                         name,
                     };
 
-                    robotStarted.robot.start();
+                    robot.start();
 
                     if (backtest) {
                         robot.setBacktestState(0, req.query.interval, req.params.figi, req.query.date);
+                    } else {
+                        robot.setCurrentState(undefined, undefined, undefined, undefined, {
+                            tickerInfo: getFigiData(req.params.figi),
+                        });
                     }
                 }
 
@@ -269,7 +282,6 @@ try {
                 robotStarted.robot.setCurrentState(
                     lastPrice,
                     candles,
-                    undefined,
                     undefined,
                     orderbook,
                 );
