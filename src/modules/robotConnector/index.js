@@ -70,12 +70,24 @@ try {
             return candles.slice(0, step);
         };
 
-        const orderStreamSubscribe = async accountId => {
-            return ordersStream.tradesStream({
-                accounts: [accountId],
-            });
-        };
+        // const orderStreamSubscribe = async accountId => {
+        //     return await ordersStream.tradesStream({
+        //         accounts: [accountId],
+        //     });
+        // };
 
+        // (async () => {
+        //     const q = ordersStream.tradesStream({
+        //         accounts: ['2125297396'],
+        //     });
+    
+        //     for await (const datza of q) {
+        //         console.log(datza);
+        //     }}
+            
+        //     )();
+
+            
         const postOrder = async (accountId, figi, quantity, price, direction, orderType, orderId) => { // eslint-disable-line max-params
             try {
                 // console.log({
@@ -199,7 +211,7 @@ try {
                         subscribes: {
                             lastPrice: lastPriceSubscribe(req.params.figi),
                             orderbook: orderBookSubscribe(req.params.figi),
-                            orders: orderStreamSubscribe,
+                            orders: ordersStream.tradesStream,
                         },
                         cacheState,
                         postOrder,
