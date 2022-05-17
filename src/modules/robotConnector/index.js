@@ -3,17 +3,19 @@ const { app } = require('../server');
 const { logger } = require('../logger');
 const fs = require('fs');
 
-const { bots } = require('tradingbot');
 const { getCandles, getCachedOrderBook, getRobotStateCachePath, getFigiData } = require('../getHeadsInstruments');
 const { getFromMorning, getToEvening } = require('../utils');
 
 let robotStarted;
+let bots;
 
 try {
-    const robotConnector = sdkObj => { // eslint-disable-line
-        if (!sdkObj.sdk) {
+    const robotConnector = (sdkObj, botLib) => { // eslint-disable-line
+        if (!sdkObj.sdk || !botLib) {
             return;
         }
+
+        bots = botLib.bots;
 
         const {
             orders,
@@ -80,14 +82,13 @@ try {
         //     const q = ordersStream.tradesStream({
         //         accounts: ['2125297396'],
         //     });
-    
+
         //     for await (const datza of q) {
         //         console.log(datza);
         //     }}
-            
+
         //     )();
 
-            
         const postOrder = async (accountId, figi, quantity, price, direction, orderType, orderId) => { // eslint-disable-line max-params
             try {
                 // console.log({

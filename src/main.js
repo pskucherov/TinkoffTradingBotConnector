@@ -22,6 +22,8 @@ try {
     let token;
     let tokenFromJson = getSelectedToken();
 
+    const bots = {};
+
     // За изменение json файла наблюдаем отдельно,
     // т.к. hmr его не подтягивает.
     // TODO: сохранять токен из запроса без вотчинга файла.
@@ -34,7 +36,7 @@ try {
                 sdk.sdk = createSdk(token, appName, sdkLogger);
 
                 prepareServer(sdk);
-                robotConnector(sdk);
+                robotConnector(sdk, bots);
             }
         });
 
@@ -53,6 +55,19 @@ try {
     }, { watchFilePatterns: [
         configFile,
     ] });
+
+    hmr(() => {
+        bots.bots = require('tradingbot').bots;
+        robotConnector(sdk, bots);
+    }, {
+        watchDir: '../node_modules/tradingbot/',
+        watchFilePatterns: ['**/*.js'],
+        chokidar: {
+            ignored: [
+                '.git',
+            ],
+        },
+    });
 
     if (!token) {
         logger(0, 'Нет выбранного токена. Добавьте в src/config.js руками или через opexviewer.');
