@@ -12,8 +12,6 @@ const config = require('../config');
  * @returns
  */
 const logger = (type, error, res) => {
-    console.log(error);
-
     if (!error) {
         error = 'Отсутствует текст ошибки!';
     } else if (typeof error === 'object') {

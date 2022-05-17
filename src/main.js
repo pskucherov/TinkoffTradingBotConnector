@@ -20,7 +20,7 @@ try {
     // Сохрянем sdk в объект для hmr, чтобы после смены токена ссылка на sdk сохранялась.
     const sdk = { sdk: undefined };
     let token;
-    let tokenFromJson = getSelectedToken();
+    let tokenFromJson = getSelectedToken(1);
 
     const bots = {};
 
@@ -30,9 +30,9 @@ try {
     chokidar
         .watch([config.files.tokens])
         .on('all', () => {
-            tokenFromJson = getSelectedToken();
+            tokenFromJson = getSelectedToken(1);
             if (tokenFromJson) {
-                token = tokenFromJson;
+                token = tokenFromJson.token;
                 sdk.sdk = createSdk(token, appName, sdkLogger);
 
                 prepareServer(sdk);
@@ -43,14 +43,14 @@ try {
     // Следим за изменением конфига.
     hmr(() => {
         config = require(configFile);
-        token = tokenFromJson || config.defaultToken;
+        token = tokenFromJson && tokenFromJson.token || config.defaultToken;
         appName = config.appName || 'pskucherov.tinkofftradingbot';
 
         if (token) {
             sdk.sdk = createSdk(token, appName, sdkLogger);
 
             prepareServer(sdk);
-            robotConnector(sdk);
+            robotConnector(sdk, bots, tokenFromJson && tokenFromJson.isSandbox);
         }
     }, { watchFilePatterns: [
         configFile,
@@ -58,7 +58,7 @@ try {
 
     hmr(() => {
         bots.bots = require('tradingbot').bots;
-        robotConnector(sdk, bots);
+        robotConnector(sdk, bots, tokenFromJson && tokenFromJson.isSandbox);
     }, {
         watchDir: '../node_modules/tradingbot/',
         watchFilePatterns: ['**/*.js'],
