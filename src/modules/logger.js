@@ -18,6 +18,8 @@ const logger = (type, error, res) => {
         error = JSON.stringify(error);
     }
 
+    console.log(error);
+
     const logsFileName = type ? config.files.logsApi : config.files.logsServer;
 
     fs.writeFileSync(logsFileName, new Date().toLocaleString() + ': ' + error + '\r\n', { flag: 'a' });
@@ -31,6 +33,8 @@ const logger = (type, error, res) => {
 
 const sdkLogger = (meta, error, descr) => {
     const err = descr && descr.description || meta && meta.message || error && JSON.stringify(error);
+
+    console.log(meta, error, descr);
 
     return logger(1, err);
 };

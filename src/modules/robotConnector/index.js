@@ -263,7 +263,9 @@ try {
                     }
                 }
 
-                return res.json(robotStarted);
+                return res.json({
+                    ...robotStarted,
+                });
             } catch (err) {
                 logger(0, err);
             }
@@ -308,7 +310,7 @@ try {
                 );
 
                 //setTimeout(() => {
-                return res.json(robotStarted.robot.getPositions());
+                return res.json(await robotStarted.robot.getPositions());
 
                 //}, (robotStarted.robot.getParams['timer'] + 50));
 
@@ -329,7 +331,30 @@ try {
 
     app.get('/robots/status', async (req, res) => {
         if (robotStarted && robotStarted.robot) {
-            return res.json(robotStarted.robot.getBacktestState());
+            const state = robotStarted.robot.getCurrentState();
+
+            return res.json({
+                ...(state.backtest ?
+                    robotStarted.robot.getBacktestState() :
+                    state),
+                positions: await robotStarted.robot.getPositions(),
+            });
+        }
+
+        return res.status(404).end();
+    });
+
+    app.get('/robots/logs/:figi', async (req, res) => {
+        const {
+            name,
+            accountId,
+            date,
+        } = req.query;
+
+        const logs = await (bots[name].getLogs(name, accountId, req.params.figi, Number(date)));
+
+        if (logs) {
+            return res.json(logs);
         }
 
         return res.status(404).end();
