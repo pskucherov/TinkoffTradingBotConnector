@@ -58,7 +58,7 @@ const accountsRequest = (sdkObj, app) => {
 
         try {
             return res.json(await sdk.operations.getPortfolio({
-                accountId: accountId,
+                accountId,
             }));
         } catch (error) {
             logger(1, error, res);
