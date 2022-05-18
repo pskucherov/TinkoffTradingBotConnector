@@ -3,7 +3,7 @@ const { app } = require('../server');
 const { logger } = require('../logger');
 const fs = require('fs');
 
-const { getCandles, getCachedOrderBook, getRobotStateCachePath, getFigiData } = require('../getHeadsInstruments');
+const { getCandles, getCachedOrderBook, getRobotStateCachePath, getFigiData, getTradingSchedules } = require('../getHeadsInstruments');
 const { getFromMorning, getToEvening } = require('../utils');
 
 let robotStarted;
@@ -219,6 +219,7 @@ try {
                             orderbook: orderBookSubscribe(req.params.figi),
                             orders: ordersStream.tradesStream,
                         },
+                        getTradingSchedules: getTradingSchedules.bind(this, sdkObj.sdk),
                         cacheState,
                         postOrder,
                         getOrders,
