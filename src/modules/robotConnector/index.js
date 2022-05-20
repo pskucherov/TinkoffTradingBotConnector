@@ -339,6 +339,7 @@ try {
                     robotStarted.robot.getBacktestState() :
                     state),
                 positions: await robotStarted.robot.getPositions(),
+                orders: await robotStarted.robot.getOrders(),
             });
         }
 
@@ -352,10 +353,53 @@ try {
             date,
         } = req.query;
 
-        const logs = await (bots[name].getLogs(name, accountId, req.params.figi, Number(date)));
+        if (name && bots[name]) {
+            const logs = await (bots[name].getLogs(name, accountId, req.params.figi, Number(date)));
 
-        if (logs) {
-            return res.json(logs);
+            if (logs) {
+                return res.json(logs);
+            }
+        }
+
+        return res.status(404).end();
+    });
+
+    /**
+     * Возвращает настройки робота.
+     */
+    app.get('/robots/getsettings/:name', async (req, res) => {
+        const { name } = req.params;
+
+        if (name && bots[name]) {
+            const settings = await (bots[name].getSettings(name));
+
+            if (settings) {
+                return res.json(settings);
+            }
+        }
+
+        return res.status(404).end();
+    });
+
+    /**
+     * Устанавливает настройки робота для онлайн и оффлайн режимов робота.
+     */
+    app.get('/robots/setsettings/:name', async (req, res) => {
+        const { name } = req.params;
+        const { isAdviser, takeProfit, stopLoss, lotsSize } = req.query;
+
+        if (robotStarted && robotStarted.robot && robotStarted.name === name) {
+            robotStarted.robot.setCurrentSettings({
+                isAdviser: Number(isAdviser), takeProfit, stopLoss, lotsSize,
+            });
+
+            return res.json({ ok: 1 });
+        } else if (name && bots[name]) {
+            bots[name].setSettings(name, {
+                isAdviser: Number(isAdviser), takeProfit, stopLoss, lotsSize,
+            });
+
+            return res.json({ ok: 1 });
         }
 
         return res.status(404).end();
