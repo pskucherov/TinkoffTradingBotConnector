@@ -52,12 +52,58 @@ const accountsRequest = (sdkObj, app) => {
         }
     });
 
+    app.get('/getmarginattr', async (req, res) => {
+        const { sdk } = sdkObj;
+        const accountId = req.query.id;
+
+        try {
+            return res.json(await sdk.users.getMarginAttributes({
+                accountId,
+            }));
+        } catch (error) {
+            logger(1, error, res);
+        }
+    });
+
+    app.get('/getaccounttarrif', async (req, res) => {
+        const { sdk } = sdkObj;
+
+        try {
+            return res.json(await sdk.users.getUserTariff({}));
+        } catch (error) {
+            logger(1, error, res);
+        }
+    });
+
+    app.get('/getaccountinfo', async (req, res) => {
+        const { sdk } = sdkObj;
+
+        try {
+            return res.json(await sdk.users.getInfo({}));
+        } catch (error) {
+            logger(1, error, res);
+        }
+    });
+
     app.get('/getbalance', async (req, res) => {
         const { sdk } = sdkObj;
         const accountId = req.query.id;
 
         try {
             return res.json(await sdk.operations.getPortfolio({
+                accountId,
+            }));
+        } catch (error) {
+            logger(1, error, res);
+        }
+    });
+
+    app.get('/getwithdrawlimits', async (req, res) => {
+        const { sdk } = sdkObj;
+        const accountId = req.query.id;
+
+        try {
+            return res.json(await sdk.operations.getWithdrawLimits({
                 accountId,
             }));
         } catch (error) {
