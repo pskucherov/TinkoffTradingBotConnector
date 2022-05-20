@@ -52,34 +52,29 @@ const accountsRequest = (sdkObj, app) => {
         }
     });
 
-    app.get('/getmarginattr', async (req, res) => {
+    app.get('/getaccountinfo/:type/:accountId', async (req, res) => {
         const { sdk } = sdkObj;
-        const accountId = req.query.id;
+        const type = req.params.type;
+        const accountId = req.params.accountId;
 
         try {
-            return res.json(await sdk.users.getMarginAttributes({
-                accountId,
-            }));
-        } catch (error) {
-            logger(1, error, res);
-        }
-    });
-
-    app.get('/getaccounttarrif', async (req, res) => {
-        const { sdk } = sdkObj;
-
-        try {
-            return res.json(await sdk.users.getUserTariff({}));
-        } catch (error) {
-            logger(1, error, res);
-        }
-    });
-
-    app.get('/getaccountinfo', async (req, res) => {
-        const { sdk } = sdkObj;
-
-        try {
-            return res.json(await sdk.users.getInfo({}));
+            if (type === 'info') {
+                return res.json(await sdk.users.getInfo({}));
+            } else if (type === 'marginattr') {
+                return res.json(await sdk.users.getMarginAttributes({
+                    accountId,
+                }));
+            } else if (type === 'tarrif') {
+                return res.json(await sdk.users.getUserTariff({}));
+            } else if (type === 'portfolio') {
+                return res.json(await sdk.operations.getPortfolio({
+                    accountId,
+                }));
+            } else if (type === 'withdrawlimits') {
+                return res.json(await sdk.operations.getWithdrawLimits({
+                    accountId,
+                }));
+            }
         } catch (error) {
             logger(1, error, res);
         }
@@ -91,19 +86,6 @@ const accountsRequest = (sdkObj, app) => {
 
         try {
             return res.json(await sdk.operations.getPortfolio({
-                accountId,
-            }));
-        } catch (error) {
-            logger(1, error, res);
-        }
-    });
-
-    app.get('/getwithdrawlimits', async (req, res) => {
-        const { sdk } = sdkObj;
-        const accountId = req.query.id;
-
-        try {
-            return res.json(await sdk.operations.getWithdrawLimits({
                 accountId,
             }));
         } catch (error) {
