@@ -256,7 +256,9 @@ try {
                     robot.start();
 
                     if (backtest) {
-                        robot.setBacktestState(0, req.query.interval, req.params.figi, req.query.date);
+                        robot.setBacktestState(0, req.query.interval, req.params.figi, req.query.date, {
+                            tickerInfo: getFigiData(req.params.figi),
+                        });
                     } else {
                         robot.setCurrentState(undefined, undefined, undefined, undefined, {
                             tickerInfo: getFigiData(req.params.figi),
