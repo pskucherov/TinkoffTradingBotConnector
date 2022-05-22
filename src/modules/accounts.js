@@ -51,55 +51,63 @@ const accountsRequest = sdkObj => {
         }
     });
 
-    app.get('/getaccountinfo/:type/:accountId', async (req, res) => {
+    app.get('/getaccountinfo', async (req, res) => {
         const { sdk } = sdkObj;
+        const { accountId, isSandbox } = getSelectedToken(1);
 
-        // const type = req.params.type;
-        const accountId = req.params.accountId;
+        if (!accountId) {
+            return res.status(404).end();
+        }
+
+        let info;
+        let marginattr;
+        let tarrif;
+        let portfolio;
+        let withdrawlimits;
+
+        if (!isSandbox) {
+            try {
+                info = await sdk.users.getInfo({});
+            } catch (error) { logger(1, error) }
+
+            try {
+                marginattr = await sdk.users.getMarginAttributes({
+                    accountId,
+                });
+            } catch (error) { logger(1, error) }
+
+            try {
+                tarrif = await sdk.users.getUserTariff({});
+            } catch (error) { logger(1, error) }
+
+            try {
+                withdrawlimits = await sdk.operations.getWithdrawLimits({
+                    accountId,
+                });
+            } catch (error) { logger(1, error) }
+        }
 
         try {
-            res.json({
-                info: await sdk.users.getInfo({}),
-                marginattr: await sdk.users.getMarginAttributes({
-                    accountId,
-                }),
-                tarrif: await sdk.users.getUserTariff({}),
-                portfolio: await sdk.operations.getPortfolio({
-                    accountId,
-                }),
-                withdrawlimits: await sdk.operations.getWithdrawLimits({
-                    accountId,
-                }),
+            portfolio = await (isSandbox ? sdk.sandbox.getSandboxPortfolio : sdk.operations.getPortfolio)({
+                accountId,
             });
+        } catch (error) { logger(1, error) }
 
-            // if (type === 'info') {
-            //     return res.json(await sdk.users.getInfo({}));
-            // } else if (type === 'marginattr') {
-            //     return res.json(await sdk.users.getMarginAttributes({
-            //         accountId,
-            //     }));
-            // } else if (type === 'tarrif') {
-            //     return res.json(await sdk.users.getUserTariff({}));
-            // } else if (type === 'portfolio') {
-            //     return res.json(await sdk.operations.getPortfolio({
-            //         accountId,
-            //     }));
-            // } else if (type === 'withdrawlimits') {
-            //     return res.json(await sdk.operations.getWithdrawLimits({
-            //         accountId,
-            //     }));
-            // }
-        } catch (error) {
-            logger(1, error, res);
-        }
+        res.json({
+            info,
+            marginattr,
+            tarrif,
+            portfolio,
+            withdrawlimits,
+        });
     });
 
     app.get('/getbalance', async (req, res) => {
         const { sdk } = sdkObj;
-        const accountId = req.query.id;
+        const { accountId, isSandbox } = getSelectedToken(1);
 
         try {
-            return res.json(await sdk.operations.getPortfolio({
+            return res.json(await (isSandbox ? sdk.sandbox.getSandboxPortfolio : sdk.operations.getPortfolio)({
                 accountId,
             }));
         } catch (error) {
