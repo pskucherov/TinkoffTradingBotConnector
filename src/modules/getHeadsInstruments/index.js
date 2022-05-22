@@ -3,6 +3,7 @@ const path = require('path');
 const config = require('../../config');
 const { logger } = require('../logger');
 const { orderBookCompressor } = require('../orderBookProcessing');
+const { mkDirByPathSync } = require('../utils');
 
 try {
     const getFuturesFromFile = () => {
@@ -205,52 +206,6 @@ try {
         });
     };
 
-    /**
-     * @copypaste https://stackoverflow.com/questions/31645738/how-to-create-full-path-with-nodes-fs-mkdirsync
-     *
-     * @param {*} targetDir
-     * @param {*} param1
-     * @returns
-     */
-    const mkDirByPathSync = (targetDir, { isRelativeToScript = false } = {}) => {
-        const sep = path.sep;
-        const initDir = path.isAbsolute(targetDir) ? sep : '';
-        const baseDir = isRelativeToScript ? __dirname : '.';
-
-        return targetDir.split(sep).reduce((parentDir, childDir) => {
-            let curDir = baseDir;
-
-            if (parentDir && childDir) {
-                curDir = path.resolve(curDir, parentDir, childDir);
-            } else if (parentDir) {
-                curDir = path.resolve(curDir, parentDir);
-            }
-
-            try {
-                fs.mkdirSync(curDir, { recursive: true });
-
-                return curDir;
-            } catch (err) {
-                if (err.code === 'EEXIST') { // curDir already exists!
-                    return curDir;
-                }
-
-                // To avoid `EISDIR` error on Mac and `EACCES`-->`ENOENT` and `EPERM` on Windows.
-                if (err.code === 'ENOENT') { // Throw the original parentDir error on curDir `ENOENT` failure.
-                    logger(0, `EACCES: permission denied, mkdir '${parentDir}'`);
-                }
-
-                const caughtErr = ['EACCES', 'EPERM', 'EISDIR'].indexOf(err.code) > -1;
-
-                if (!caughtErr || caughtErr && curDir === path.resolve(targetDir)) {
-                    logger(0, JSON.stringify(err)); // Throw if it's just the last created dir.
-                }
-            }
-
-            return curDir;
-        }, initDir);
-    };
-
     const getRobotStateCachePath = (figi, date, compressed) => {
         const dir = mkDirByPathSync(path.join(config.files.orderbookCacheDir, figi));
 
@@ -429,8 +384,6 @@ try {
 
         getLastPriceAndOrderBook,
         getRobotStateCachePath,
-
-        mkDirByPathSync,
     };
 } catch (error) {
     logger(0, error);

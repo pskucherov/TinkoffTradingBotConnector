@@ -1,5 +1,5 @@
 const path = require('path');
-const { mkDirByPathSync } = require('./modules/getHeadsInstruments');
+const { mkDirByPathSync } = require('./modules/utils');
 
 // Логи ошибок пишутся отдельно для TinkoffApi и http сервера.
 const dateOptions = { year: 'numeric', month: 'numeric', day: 'numeric' };
