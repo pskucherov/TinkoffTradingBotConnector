@@ -1,11 +1,15 @@
 const path = require('path');
+const { mkDirByPathSync } = require('./modules/getHeadsInstruments');
 
 // Логи ошибок пишутся отдельно для TinkoffApi и http сервера.
 const dateOptions = { year: 'numeric', month: 'numeric', day: 'numeric' };
 const dateStr = new Date().toLocaleString('ru', dateOptions);
 
-const logsServer = path.join(__dirname, `../logs/server/${dateStr}.txt`);
-const logsApi = path.join(__dirname, `../logs/api/${dateStr}.txt`);
+const serverDir = mkDirByPathSync(path.resolve(__dirname, '../logs/server/'));
+const apiDir = mkDirByPathSync(path.resolve(__dirname, '../logs/server/'));
+
+const logsServer = path.join(serverDir, `${dateStr}.txt`);
+const logsApi = path.join(apiDir, `${dateStr}.txt`);
 
 const tokens = path.join(__dirname, '../data/tokens.json');
 const futures = path.join(__dirname, '../data/futures.json');

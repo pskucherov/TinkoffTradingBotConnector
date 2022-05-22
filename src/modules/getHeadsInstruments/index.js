@@ -429,6 +429,8 @@ try {
 
         getLastPriceAndOrderBook,
         getRobotStateCachePath,
+
+        mkDirByPathSync,
     };
 } catch (error) {
     logger(0, error);
