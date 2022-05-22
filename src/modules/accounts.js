@@ -53,27 +53,42 @@ const accountsRequest = sdkObj => {
 
     app.get('/getaccountinfo/:type/:accountId', async (req, res) => {
         const { sdk } = sdkObj;
-        const type = req.params.type;
+
+        // const type = req.params.type;
         const accountId = req.params.accountId;
 
         try {
-            if (type === 'info') {
-                return res.json(await sdk.users.getInfo({}));
-            } else if (type === 'marginattr') {
-                return res.json(await sdk.users.getMarginAttributes({
+            res.json({
+                info: await sdk.users.getInfo({}),
+                marginattr: await sdk.users.getMarginAttributes({
                     accountId,
-                }));
-            } else if (type === 'tarrif') {
-                return res.json(await sdk.users.getUserTariff({}));
-            } else if (type === 'portfolio') {
-                return res.json(await sdk.operations.getPortfolio({
+                }),
+                tarrif: await sdk.users.getUserTariff({}),
+                portfolio: await sdk.operations.getPortfolio({
                     accountId,
-                }));
-            } else if (type === 'withdrawlimits') {
-                return res.json(await sdk.operations.getWithdrawLimits({
+                }),
+                withdrawlimits: await sdk.operations.getWithdrawLimits({
                     accountId,
-                }));
-            }
+                }),
+            });
+
+            // if (type === 'info') {
+            //     return res.json(await sdk.users.getInfo({}));
+            // } else if (type === 'marginattr') {
+            //     return res.json(await sdk.users.getMarginAttributes({
+            //         accountId,
+            //     }));
+            // } else if (type === 'tarrif') {
+            //     return res.json(await sdk.users.getUserTariff({}));
+            // } else if (type === 'portfolio') {
+            //     return res.json(await sdk.operations.getPortfolio({
+            //         accountId,
+            //     }));
+            // } else if (type === 'withdrawlimits') {
+            //     return res.json(await sdk.operations.getWithdrawLimits({
+            //         accountId,
+            //     }));
+            // }
         } catch (error) {
             logger(1, error, res);
         }
