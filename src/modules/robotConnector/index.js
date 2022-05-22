@@ -209,6 +209,7 @@ try {
 
                 const name = req.query.name;
                 const backtest = Number(req.query.backtest);
+                const accountId = req.query.accountId;
                 const robot = new bots[name](
                     req.query.accountId,
                     Number(req.query.adviser),
@@ -371,9 +372,12 @@ try {
      */
     app.get('/robots/getsettings/:name', async (req, res) => {
         const { name } = req.params;
+        const {
+            accountId, figi,
+        } = req.query;
 
         if (name && bots[name]) {
-            const settings = await (bots[name].getSettings(name));
+            const settings = await (bots[name].getSettings(name, accountId, figi));
 
             if (settings) {
                 return res.json(settings);
@@ -388,18 +392,23 @@ try {
      */
     app.get('/robots/setsettings/:name', async (req, res) => {
         const { name } = req.params;
-        const { isAdviser, takeProfit, stopLoss, lotsSize } = req.query;
+        const {
+            isAdviser, takeProfit, stopLoss, lotsSize,
+            su, sn, ru, rn, accountId, figi,
+        } = req.query;
 
         if (robotStarted && robotStarted.robot && robotStarted.name === name) {
             robotStarted.robot.setCurrentSettings({
                 isAdviser: Number(isAdviser), takeProfit, stopLoss, lotsSize,
+                su, sn, ru, rn,
             });
 
             return res.json({ ok: 1 });
         } else if (name && bots[name]) {
             bots[name].setSettings(name, {
                 isAdviser: Number(isAdviser), takeProfit, stopLoss, lotsSize,
-            });
+                su, sn, ru, rn,
+            }, accountId, figi);
 
             return res.json({ ok: 1 });
         }
