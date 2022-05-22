@@ -209,7 +209,7 @@ try {
 
                 const name = req.query.name;
                 const backtest = Number(req.query.backtest);
-                const accountId = req.query.accountId;
+
                 const robot = new bots[name](
                     req.query.accountId,
                     Number(req.query.adviser),
