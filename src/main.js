@@ -8,81 +8,84 @@ const hmr = require('node-hmr');
 const { robotConnector } = require('./modules/robotConnector');
 
 try {
-    const { createSdk } = require('tinkoff-sdk-grpc-js');
+    const tinkofftradingbot = (bots = {}) => {
+        const { createSdk } = require('tinkoff-sdk-grpc-js');
 
-    const { app } = require('./modules/server');
-    const { tokenRequest, getSelectedToken } = require('./modules/tokens');
-    const { prepareServer, instrumentsRequest } = require('./modules/getHeadsInstruments/serverRequests');
+        const { app } = require('./modules/server');
+        const { tokenRequest, getSelectedToken } = require('./modules/tokens');
+        const { prepareServer, instrumentsRequest } = require('./modules/getHeadsInstruments/serverRequests');
 
-    // TODO: изменить руками или в процессе создания робота.
-    let appName = config.appName || 'pskucherov.tinkofftradingbot';
+        // TODO: изменить руками или в процессе создания робота.
+        let appName = config.appName || 'pskucherov.tinkofftradingbot';
 
-    // Сохрянем sdk в объект для hmr, чтобы после смены токена ссылка на sdk сохранялась.
-    const sdk = { sdk: undefined };
-    let token;
-    let tokenFromJson = getSelectedToken(1);
+        // Сохрянем sdk в объект для hmr, чтобы после смены токена ссылка на sdk сохранялась.
+        const sdk = { sdk: undefined };
+        let token;
+        let tokenFromJson = getSelectedToken(1);
 
-    const bots = {};
+        // За изменение json файла наблюдаем отдельно,
+        // т.к. hmr его не подтягивает.
+        // TODO: сохранять токен из запроса без вотчинга файла.
+        chokidar
+            .watch([config.files.tokens])
+            .on('all', () => {
+                tokenFromJson = getSelectedToken(1);
+                if (tokenFromJson) {
+                    token = tokenFromJson.token;
+                    sdk.sdk = createSdk(token, appName, sdkLogger);
 
-    // За изменение json файла наблюдаем отдельно,
-    // т.к. hmr его не подтягивает.
-    // TODO: сохранять токен из запроса без вотчинга файла.
-    chokidar
-        .watch([config.files.tokens])
-        .on('all', () => {
-            tokenFromJson = getSelectedToken(1);
-            if (tokenFromJson) {
-                token = tokenFromJson.token;
+                    prepareServer(sdk);
+                    robotConnector(sdk, bots);
+                }
+            });
+
+        // Следим за изменением конфига.
+        hmr(() => {
+            config = require(configFile);
+            token = tokenFromJson && tokenFromJson.token || config.defaultToken;
+            appName = config.appName || 'pskucherov.tinkofftradingbot';
+
+            if (token) {
                 sdk.sdk = createSdk(token, appName, sdkLogger);
 
                 prepareServer(sdk);
-                robotConnector(sdk, bots);
+                robotConnector(sdk, bots, tokenFromJson && tokenFromJson.isSandbox);
             }
-        });
+        }, { watchFilePatterns: [
+            configFile,
+        ] });
 
-    // Следим за изменением конфига.
-    hmr(() => {
-        config = require(configFile);
-        token = tokenFromJson && tokenFromJson.token || config.defaultToken;
-        appName = config.appName || 'pskucherov.tinkofftradingbot';
+        // Понадобится, если входной точкой будет этот репо, а не с ботами.
+        // hmr(() => {
+        //     bots.bots = require('tradingbot').bots;
+        //     robotConnector(sdk, bots, tokenFromJson && tokenFromJson.isSandbox);
+        // }, {
+        //     watchDir: '../node_modules/tradingbot/',
+        //     watchFilePatterns: ['**/*.js'],
+        //     chokidar: {
+        //         ignored: [
+        //             '.git',
+        //         ],
+        //     },
+        // });
 
-        if (token) {
+        if (!token) {
+            logger(0, 'Нет выбранного токена. Добавьте через opexviewer.');
+        } else {
             sdk.sdk = createSdk(token, appName, sdkLogger);
-
-            prepareServer(sdk);
-            robotConnector(sdk, bots, tokenFromJson && tokenFromJson.isSandbox);
         }
-    }, { watchFilePatterns: [
-        configFile,
-    ] });
 
-    hmr(() => {
-        bots.bots = require('tradingbot').bots;
-        robotConnector(sdk, bots, tokenFromJson && tokenFromJson.isSandbox);
-    }, {
-        watchDir: '../node_modules/tradingbot/',
-        watchFilePatterns: ['**/*.js'],
-        chokidar: {
-            ignored: [
-                '.git',
-            ],
-        },
-    });
+        // Отдаёт логи на клиент.
+        require('./modules/logsRequest');
 
-    if (!token) {
-        logger(0, 'Нет выбранного токена. Добавьте в src/config.js руками или через opexviewer.');
-    } else {
-        sdk.sdk = createSdk(token, appName, sdkLogger);
-    }
+        // CRUD токенов.
+        tokenRequest(createSdk);
 
-    // Отдаёт логи на клиент.
-    require('./modules/logsRequest');
+        // CRUD инструментов.
+        instrumentsRequest(sdk);
+    };
 
-    // CRUD токенов.
-    tokenRequest(createSdk);
-
-    // CRUD инструментов.
-    instrumentsRequest(sdk);
+    exports.connector = tinkofftradingbot;
 } catch (error) {
     logger(0, error);
 }
