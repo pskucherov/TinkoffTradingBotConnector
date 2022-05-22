@@ -6,7 +6,7 @@ const dateOptions = { year: 'numeric', month: 'numeric', day: 'numeric' };
 const dateStr = new Date().toLocaleString('ru', dateOptions);
 
 const serverDir = mkDirByPathSync(path.resolve(__dirname, '../logs/server/'));
-const apiDir = mkDirByPathSync(path.resolve(__dirname, '../logs/server/'));
+const apiDir = mkDirByPathSync(path.resolve(__dirname, '../logs/api/'));
 
 const logsServer = path.join(serverDir, `${dateStr}.txt`);
 const logsApi = path.join(apiDir, `${dateStr}.txt`);
