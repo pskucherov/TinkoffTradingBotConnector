@@ -426,6 +426,14 @@ try {
         return res.json({});
     });
 
+    app.get('/robots/debug', async (req, res) => {
+        if (robotStarted && robotStarted.robot) {
+            return res.json(robotStarted.robot);
+        }
+
+        return res.json({});
+    });
+
     module.exports = {
         robotConnector,
     };

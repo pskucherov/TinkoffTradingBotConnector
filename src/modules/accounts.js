@@ -106,6 +106,10 @@ const accountsRequest = sdkObj => {
         const { sdk } = sdkObj;
         const { accountId, isSandbox } = getSelectedToken(1);
 
+        if (!accountId) {
+            return res.status(404).end();
+        }
+
         try {
             return res.json(await (isSandbox ? sdk.sandbox.getSandboxPortfolio : sdk.operations.getPortfolio)({
                 accountId,
