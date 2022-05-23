@@ -10,7 +10,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 const ip = '0.0.0.0';
-const port = process.env.PORT || 8000;
+const port = process.env.SERVERPORT || 8000;
 
 http.listen(port, ip, () => {
     console.log(`we are listening on port ${port}`);
