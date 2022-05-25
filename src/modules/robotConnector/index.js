@@ -5,6 +5,7 @@ const fs = require('fs');
 
 const { getCandles, getCachedOrderBook, getRobotStateCachePath, getFigiData, getTradingSchedules } = require('../getHeadsInstruments');
 const { getFromMorning, getToEvening } = require('../utils');
+const { getSelectedToken } = require('../tokens');
 
 let robotStarted;
 let bots;
@@ -231,6 +232,7 @@ try {
                         getOperations,
                     },
                     {
+                        token: getSelectedToken(),
                         enums: {
                             CandleInterval,
                             InstrumentStatus,
