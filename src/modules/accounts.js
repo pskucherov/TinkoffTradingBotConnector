@@ -135,6 +135,36 @@ const accountsRequest = sdkObj => {
             logger(0, error, res);
         }
     });
+
+    app.get('/getbrokerreport:time', async (req, res) => {
+        const { sdk } = sdkObj;
+        const { accountId, isSandbox } = getSelectedToken(1);
+
+        if (!accountId) {
+            return res.status(404).end();
+        }
+        const time = req.params.time;
+
+        try {
+            if (time === 'month') {
+                const brokerReport = await(isSandbox ? sdk.sandbox.getBrokerReport : sdk.operations.getBrokerReport)({
+                    accountId,
+                    from: new Date('2022-04-04T07:00:00Z'),
+                    to: new Date('2022-01-01T15:45:00Z'),
+                });
+
+                return await res.json(await (isSandbox ? sdk.sandbox.getBrokerReport : sdk.operations.getBrokerReport)({
+                    getBrokerReportRequest: {
+                        taskId: brokerReport.generateBrokerReportResponse?.taskId,
+                    },
+                }));
+            } else {
+                res.status(404).end();
+            }
+        } catch (error) {
+            logger(1, error, res);
+        }
+    });
 };
 
 module.exports = {
