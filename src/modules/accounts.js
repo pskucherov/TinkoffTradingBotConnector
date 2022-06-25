@@ -136,35 +136,52 @@ const accountsRequest = sdkObj => {
         }
     });
 
-    app.get('/getbrokerreport/time', async (req, res) => {
+    app.get('/getbrokerreport', async (req, res) => {
         const { sdk } = sdkObj;
         const { accountId, isSandbox } = getSelectedToken(1);
 
         if (!accountId) {
             return res.status(404).end();
         }
-        const time = req.params.time;
-        console.log(accountId)
 
-        try {
-            if (time === 'month') {
+        const accountsRequest = sdkObj => {
+        }
+        let thisDay = new Date().toISOString();
+        let week = new Date();
+        week.setDate(week.getDate() - 7);
+        week = week.toISOString()
+
+        try {            
                 const brokerReport = await(isSandbox ? sdk.sandbox.getBrokerReport : sdk.operations.getBrokerReport)({
                     generateBrokerReportRequest: {
                         accountId,
-                        from: new Date('2022-01-01T07:00:00Z'),
-                        to: new Date('2022-06-06T15:45:00Z'),
-                    },
+                        from: new Date(week),
+                        to: new Date(thisDay),
+                    }
                 });
 
-                return await res.json(await (isSandbox ? sdk.sandbox.getBrokerReport : sdk.operations.getBrokerReport)({
-                    getBrokerReportRequest: {
-                        taskId: await brokerReport.generateBrokerReportResponse?.taskId,
-                    },
-                }));
-            } else {
-                res.status(404).end();
-            }
-        } catch (error) {
+                const taskId = await brokerReport.generateBrokerReportResponse?.taskId
+
+                console.log(taskId)
+
+                const interval = setInterval(async () => {
+                    let q;
+
+                    try {
+                        q = res.json(await (isSandbox ? sdk.sandbox.getBrokerReport : sdk.operations.getBrokerReport) ({
+                            getBrokerReportRequest: {
+                              taskId: brokerReport.generateBrokerReportResponse?.taskId,
+                            },
+                         }));
+                    } catch (e) {};
+
+                    if (q) {
+                        console.log(q)
+                        clearInterval(interval);
+                    }
+                }, 3000);
+
+              } catch (error) {
             logger(1, error, res);
         }
     });
