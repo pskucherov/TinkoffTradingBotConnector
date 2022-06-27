@@ -3,6 +3,10 @@ const { app } = require('./server');
 const { logger } = require('./logger');
 const { addAccountIdToToken, getSelectedToken } = require('./tokens');
 
+const config = require('../config.js');
+
+const fs = require('fs');
+
 /**
  * Получить расписание торгов.
  *
@@ -145,43 +149,70 @@ const accountsRequest = sdkObj => {
         }
 
         const accountsRequest = sdkObj => {
-        }
-        let thisDay = new Date().toISOString();
+        };
+
+        const thisDay = new Date().toISOString();
         let week = new Date();
-        week.setDate(week.getDate() - 7);
-        week = week.toISOString()
 
-        try {            
-                const brokerReport = await(isSandbox ? sdk.sandbox.getBrokerReport : sdk.operations.getBrokerReport)({
-                    generateBrokerReportRequest: {
-                        accountId,
-                        from: new Date(week),
-                        to: new Date(thisDay),
+        week.setDate(week.getDate() - 14);
+        week = week.toISOString();
+
+        try {
+            const brokerReport = await(isSandbox ? sdk.sandbox.getBrokerReport : sdk.operations.getBrokerReport)({
+                generateBrokerReportRequest: {
+                    accountId,
+                    from: new Date(week),
+                    to: new Date(thisDay),
+                },
+            });
+
+            const taskId = await brokerReport.generateBrokerReportResponse?.taskId;
+
+            if (!taskId) {
+                const fileName = config.files.brokerRep;
+
+                try {
+                    let data;
+
+                    if (fs.existsSync(fileName)) {
+                        data = fs.readFileSync(fileName);
+                        res.send(data);
+                    } else {
+                        res.status(404).end();
                     }
-                });
-
-                const taskId = await brokerReport.generateBrokerReportResponse?.taskId
-
-                console.log(taskId)
-
+                } catch (error) {
+                    logger(0, error, res);
+                }
+            } else {
                 const interval = setInterval(async () => {
                     let q;
+                    const fileName = config.files.brokerRep;
 
                     try {
-                        q = res.json(await (isSandbox ? sdk.sandbox.getBrokerReport : sdk.operations.getBrokerReport) ({
+                        q = await (isSandbox ? sdk.sandbox.getBrokerReport : sdk.operations.getBrokerReport)({
                             getBrokerReportRequest: {
-                              taskId: brokerReport.generateBrokerReportResponse?.taskId,
+                                taskId: taskId,
                             },
-                         }));
-                    } catch (e) {};
-
+                        });
+                    } catch (e) {}
                     if (q) {
-                        console.log(q)
+                        res.json(q);
+
+                        try {
+                            const content = JSON.stringify(q);
+
+                            fs.writeFile(fileName, content, function(err) {
+                                if (err) {
+                                    logger(1, err, res);
+                                }
+                            });
+                        } catch (e) {}
+
                         clearInterval(interval);
                     }
                 }, 3000);
-
-              } catch (error) {
+            }
+        } catch (error) {
             logger(1, error, res);
         }
     });
