@@ -2,11 +2,12 @@ const { logger } = require('../logger');
 const { app } = require('../server');
 
 const { accountsRequest } = require('../accounts');
-const { getFutures, getShares, getBlueChipsShares,
+const { getFutures, getEtfs, getShares, getBlueChipsShares,
     getBlueChipsFutures, getFigiData, getTradingSchedules,
     getCandles,
     getCachedOrderBook,
-    getLastPriceAndOrderBook } = require('./index');
+    getLastPriceAndOrderBook,
+    getEtfsPage } = require('./index');
 
 try {
     // Получение списка фьючерсов и акций, если их нет.
@@ -21,6 +22,7 @@ try {
         if (sdk.sdk) {
             prepared = true;
 
+            // TODO: порефакторить в единый метод.
             const futures = await getFutures(sdk.sdk);
 
             futures && futures.updateDate && logger(0, 'Дата обновления списка фьючерсов: ' + futures.updateDate);
@@ -28,6 +30,10 @@ try {
             const shares = await getShares(sdk.sdk);
 
             shares && shares.updateDate && logger(0, 'Дата обновления списка акций: ' + shares.updateDate);
+
+            const etfs = await getEtfs(sdk.sdk);
+
+            etfs && etfs.updateDate && logger(0, 'Дата обновления списка etf: ' + etfs.updateDate);
 
             // CRUD аккаунтов. Здесь вместо sdk передаём весь объект,
             // а содержимое берём каждый раз при запросе.
@@ -51,6 +57,15 @@ try {
             try {
                 return res
                     .json(getBlueChipsFutures(sdk.sdk));
+            } catch (error) {
+                logger(0, error, res);
+            }
+        });
+
+        app.get('/etfs', (req, res) => {
+            try {
+                return res
+                    .json(getEtfsPage(sdk.sdk));
             } catch (error) {
                 logger(0, error, res);
             }

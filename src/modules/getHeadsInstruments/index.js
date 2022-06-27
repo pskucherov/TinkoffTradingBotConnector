@@ -14,6 +14,21 @@ try {
     };
 
     /**
+     * TODO: объёдинить с другими аналогичными методами в один.
+     *
+     * @returns
+     */
+    const getEtfsFromFile = () => {
+        const fileName = config.files.etfs;
+
+        if (fs.existsSync(fileName)) {
+            const file = fs.readFileSync(fileName, 'utf8');
+
+            return file && JSON.parse(file);
+        }
+    };
+
+    /**
      * Обновление списка фьючерсов.
      *
      * @param {*} sdk
@@ -43,6 +58,35 @@ try {
     };
 
     /**
+     * Обновление списка etfs.
+     *
+     * @param {*} sdk
+     * @returns
+     */
+    const updateEtfs = async sdk => {
+        const f = getEtfsFromFile();
+
+        if (f && f.updateDate && f.updateDate === config.dateStr) {
+            logger(0, `ETF взяты из кэша ${config.dateStr} без обновления.`);
+
+            return f;
+        }
+
+        const etfs = await sdk.instruments.etfs({
+            instrumentStatus: sdk.InstrumentStatus.INSTRUMENT_STATUS_BASE,
+        });
+
+        const data = {
+            updateDate: config.dateStr,
+            etfs,
+        };
+
+        fs.writeFileSync(config.files.etfs, JSON.stringify(data));
+
+        return data;
+    };
+
+    /**
      * Получение списка фьючерсов.
      *
      * @param {String} sdk
@@ -53,6 +97,22 @@ try {
 
         if (!f || !f.futures || !f.futures.length) {
             return await updateFutures(sdk);
+        }
+
+        return f;
+    };
+
+    /**
+     * Получение списка фьючерсов.
+     *
+     * @param {String} sdk
+     * @returns
+     */
+    const getEtfs = async sdk => {
+        const f = getEtfsFromFile();
+
+        if (!f || !f.etfs || !f.etfs.length) {
+            return await updateEtfs(sdk);
         }
 
         return f;
@@ -168,6 +228,15 @@ try {
         return {
             updatedDate: futures.updateDate,
             instruments: blueChips,
+        };
+    };
+
+    const getEtfsPage = () => {
+        const ets = getEtfsFromFile();
+
+        return {
+            updatedDate: ets.updateDate,
+            instruments: ets.etfs.instruments,
         };
     };
 
@@ -335,6 +404,16 @@ try {
                 return s;
             }
         }
+
+        const { etfs } = getEtfsFromFile();
+
+        if (etfs && etfs.instruments) {
+            const e = getInstrument(etfs.instruments, figi);
+
+            if (e) {
+                return e;
+            }
+        }
     };
 
     // Стакан может браться только из закэшированных данных.
@@ -368,13 +447,13 @@ try {
 
     module.exports = {
         getFutures,
-        updateFutures,
-
+        getEtfs,
         getShares,
         updateShares,
 
         getBlueChipsShares,
         getBlueChipsFutures,
+        getEtfsPage,
 
         getFigiData,
         getCandles,

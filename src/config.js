@@ -13,6 +13,7 @@ const logsApi = path.join(apiDir, `${dateStr}.txt`);
 
 const tokens = path.join(__dirname, '../data/tokens.json');
 const futures = path.join(__dirname, '../data/futures.json');
+const etfs = path.join(__dirname, '../data/etfs.json');
 const shares = path.join(__dirname, '../data/shares.json');
 const candlesCacheDir = path.join(__dirname, '../data/cachedcandles');
 const orderbookCacheDir = path.join(__dirname, '../data/cachedorderbooks');
@@ -30,6 +31,7 @@ module.exports = {
     files: {
         tokens,
         futures,
+        etfs,
         shares,
         logsServer,
         logsApi,
