@@ -7,6 +7,7 @@ const { getFutures, getEtfs, getShares, getBlueChipsShares,
     getCandles,
     getCachedOrderBook,
     getLastPriceAndOrderBook,
+    getSharesPage,
     getEtfsPage } = require('./index');
 
 try {
@@ -57,6 +58,15 @@ try {
             try {
                 return res
                     .json(getBlueChipsFutures(sdk.sdk));
+            } catch (error) {
+                logger(0, error, res);
+            }
+        });
+
+        app.get('/shares', (req, res) => {
+            try {
+                return res
+                    .json(getSharesPage(sdk.sdk));
             } catch (error) {
                 logger(0, error, res);
             }

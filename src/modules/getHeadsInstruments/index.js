@@ -231,12 +231,23 @@ try {
         };
     };
 
-    const getEtfsPage = () => {
-        const ets = getEtfsFromFile();
+    const getSharesPage = () => {
+        const shares = getSharesFromFile();
 
         return {
-            updatedDate: ets.updateDate,
-            instruments: ets.etfs.instruments,
+            updatedDate: shares.updateDate,
+            instruments: shares.shares.instruments.filter(i => {
+                return i.shortEnabledFlag;
+            }),
+        };
+    };
+
+    const getEtfsPage = () => {
+        const etfs = getEtfsFromFile();
+
+        return {
+            updatedDate: etfs.updateDate,
+            instruments: etfs.etfs.instruments,
         };
     };
 
@@ -453,6 +464,7 @@ try {
 
         getBlueChipsShares,
         getBlueChipsFutures,
+        getSharesPage,
         getEtfsPage,
 
         getFigiData,
