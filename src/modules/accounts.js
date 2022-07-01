@@ -148,13 +148,10 @@ const accountsRequest = sdkObj => {
             return res.status(404).end();
         }
 
-        const accountsRequest = sdkObj => {
-        };
-
-        const thisDay = new Date().toISOString();
+        const today = new Date().toISOString();
         let week = new Date();
 
-        week.setDate(week.getDate() - 14);
+        week.setDate(week.getDate() - 15);
         week = week.toISOString();
 
         try {
@@ -162,31 +159,16 @@ const accountsRequest = sdkObj => {
                 generateBrokerReportRequest: {
                     accountId,
                     from: new Date(week),
-                    to: new Date(thisDay),
+                    to: new Date(today),
                 },
             });
 
             const taskId = await brokerReport.generateBrokerReportResponse?.taskId;
+            const fileName = config.files.brokerReport;
 
-            if (!taskId) {
-                const fileName = config.files.brokerRep;
-
-                try {
-                    let data;
-
-                    if (fs.existsSync(fileName)) {
-                        data = fs.readFileSync(fileName);
-                        res.send(data);
-                    } else {
-                        res.status(404).end();
-                    }
-                } catch (error) {
-                    logger(0, error, res);
-                }
-            } else {
+            if (taskId) {
                 const interval = setInterval(async () => {
                     let q;
-                    const fileName = config.files.brokerRep;
 
                     try {
                         q = await (isSandbox ? sdk.sandbox.getBrokerReport : sdk.operations.getBrokerReport)({
@@ -194,23 +176,35 @@ const accountsRequest = sdkObj => {
                                 taskId: taskId,
                             },
                         });
-                    } catch (e) {}
+                    } catch (error) {}
                     if (q) {
-                        res.json(q);
-
                         try {
                             const content = JSON.stringify(q);
 
-                            fs.writeFile(fileName, content, function(err) {
-                                if (err) {
-                                    logger(1, err, res);
+                            fs.writeFile(fileName, content, function(error) {
+                                if (error) {
+                                    logger(0, error, res);
                                 }
                             });
-                        } catch (e) {}
+                        } catch (error) {}
 
                         clearInterval(interval);
+
+                        return res.json(q);
                     }
-                }, 3000);
+                }, 5000);
+            } else {
+                let data;
+
+                try {
+                    if (fs.existsSync(fileName)) {
+                        data = fs.readFileSync(fileName);
+
+                        return res.send(data);
+                    }
+                } catch (error) {
+                    logger(0, error, res);
+                }
             }
         } catch (error) {
             logger(1, error, res);
