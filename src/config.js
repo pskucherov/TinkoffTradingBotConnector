@@ -17,6 +17,7 @@ const etfs = path.join(__dirname, '../data/etfs.json');
 const shares = path.join(__dirname, '../data/shares.json');
 const candlesCacheDir = path.join(__dirname, '../data/cachedcandles');
 const orderbookCacheDir = path.join(__dirname, '../data/cachedorderbooks');
+const brokerReport = path.join(__dirname, '../data/brokerReport.json');
 
 module.exports = {
     blueChips: [
@@ -37,6 +38,7 @@ module.exports = {
         logsApi,
         candlesCacheDir,
         orderbookCacheDir,
+        brokerReport,
     },
     defaultToken: '',
     appName: '',
