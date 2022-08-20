@@ -2,25 +2,27 @@ const path = require('path');
 const chokidar = require('chokidar');
 const configFile = path.join(__dirname, './config.js');
 
-let config = require(configFile);
+const config = require(configFile);
 const { logger, sdkLogger } = require('./modules/logger');
 const hmr = require('node-hmr');
 const { robotConnector } = require('./modules/robotConnector');
+const { TConnector } = require('tconnector/tconnector');
 
 try {
     const tinkofftradingbot = (bots = {}) => {
         const { createSdk } = require('tinkoff-sdk-grpc-js');
 
         const { app } = require('./modules/server');
-        const { tokenRequest, getSelectedToken } = require('./modules/tokens');
+        const { tokenRequest, getSelectedToken, checkFinamServer } = require('./modules/tokens');
         const { prepareServer, instrumentsRequest } = require('./modules/getHeadsInstruments/serverRequests');
 
         // TODO: изменить руками или в процессе создания робота.
-        let appName = config.appName || 'pskucherov.tinkofftradingbot';
+        const appName = config.appName || 'pskucherov.tinkofftradingbot';
 
         // Сохрянем sdk в объект для hmr, чтобы после смены токена ссылка на sdk сохранялась.
         const sdk = { sdk: undefined };
         let token;
+        let brokerId;
         let tokenFromJson = getSelectedToken(1);
 
         // За изменение json файла наблюдаем отдельно,
@@ -30,30 +32,40 @@ try {
             .watch([config.files.tokens])
             .on('all', () => {
                 tokenFromJson = getSelectedToken(1);
-                if (tokenFromJson) {
+                if (tokenFromJson && tokenFromJson.token) {
                     token = tokenFromJson.token;
-                    sdk.sdk = createSdk(token, appName, sdkLogger);
+                    brokerId = tokenFromJson.brokerId;
 
-                    prepareServer(sdk);
-                    robotConnector(sdk, bots);
+                    if (brokerId === 'TINKOFF') {
+                        sdk.sdk = createSdk(token, appName, sdkLogger);
+                        prepareServer(sdk);
+                        robotConnector(sdk, bots);
+                    } else if (brokerId === 'FINAM') {
+                        if (sdk.sdk) {
+                            sdk.sdk.disconnect();
+                        }
+                        sdk.sdk = new TConnector();
+                        sdk.sdk.connect(token, tokenFromJson.password); // 'FZTC17102A', 'Test');
+                        checkFinamServer(sdk.sdk);
+                    }
                 }
             });
 
         // Следим за изменением конфига.
-        hmr(() => {
-            config = require(configFile);
-            token = tokenFromJson && tokenFromJson.token || config.defaultToken;
-            appName = config.appName || 'pskucherov.tinkofftradingbot';
+        // hmr(() => {
+        //     config = require(configFile);
+        //     token = tokenFromJson && tokenFromJson.token || config.defaultToken;
+        //     appName = config.appName || 'pskucherov.tinkofftradingbot';
 
-            if (token) {
-                sdk.sdk = createSdk(token, appName, sdkLogger);
+        //     if (token && tokenFromJson.brokerId === 'TINKOFF') {
+        //         sdk.sdk = createSdk(token, appName, sdkLogger);
 
-                prepareServer(sdk);
-                robotConnector(sdk, bots, tokenFromJson && tokenFromJson.isSandbox);
-            }
-        }, { watchFilePatterns: [
-            configFile,
-        ] });
+        //         prepareServer(sdk);
+        //         robotConnector(sdk, bots, tokenFromJson && tokenFromJson.isSandbox);
+        //     }
+        // }, { watchFilePatterns: [
+        //     configFile,
+        // ] });
 
         // Понадобится, если входной точкой будет этот репо, а не с ботами.
         // hmr(() => {
