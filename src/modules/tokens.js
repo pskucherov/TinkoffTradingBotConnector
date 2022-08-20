@@ -128,13 +128,7 @@ const checkFinamServer = async sdk => {
 
         const status = sdk.checkServerStatus();
 
-        if (status.connected === true) {
-            return res
-                .json({ connected: true });
-        } else {
-            return res
-                .json(status);
-        }
+        return res.json(status);
     });
 };
 

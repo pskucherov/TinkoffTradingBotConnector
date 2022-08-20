@@ -4,14 +4,21 @@ const config = require(configFile);
 const { logger } = require('./logger');
 const { app } = require('./server');
 const fs = require('fs');
+const { utils } = require('tconnector/utils');
 
 app.get('/logs/:type', async (req, res) => {
     try {
         const fileName = req.params.type === 'server' ? config.files.logsServer : config.files.logsApi;
-        let data;
+
+        if (['dsp', 'ts', 'xdf'].includes(req.params.type)) {
+            const data = utils.getFileContent(req.params.type);
+
+            return res.send(data);
+        }
 
         if (fs.existsSync(fileName)) {
-            data = fs.readFileSync(fileName);
+            const data = fs.readFileSync(fileName);
+
             res.send(data);
         } else {
             res.status(404).end();
