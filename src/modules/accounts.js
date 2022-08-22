@@ -45,6 +45,10 @@ const accountsRequest = sdkObj => {
             // Знать sandbox или нет -- критично.
             const token = getSelectedToken(1);
 
+            if (token.brokerId === 'FINAM') {
+                return res.json({ accounts: sdk.getClients() || [] });
+            }
+
             return res.json(token ? await getAccounts(sdk, token.isSandbox) : {});
         } catch (error) {
             logger(0, error, res);
@@ -53,10 +57,14 @@ const accountsRequest = sdkObj => {
 
     app.get('/getaccountinfo', async (req, res) => {
         const { sdk } = sdkObj;
-        const { accountId, isSandbox } = getSelectedToken(1);
+        const { accountId, isSandbox, brokerId } = getSelectedToken(1);
 
         if (!accountId) {
             return res.status(404).end();
+        }
+
+        if (brokerId === 'FINAM') {
+            return res.json({ portfolio: sdk.getPortfolio() });
         }
 
         let info;
@@ -93,7 +101,7 @@ const accountsRequest = sdkObj => {
             });
         } catch (error) { logger(1, error) }
 
-        res.json({
+        return res.json({
             info,
             marginattr,
             tarrif,
@@ -104,9 +112,9 @@ const accountsRequest = sdkObj => {
 
     app.get('/getbalance', async (req, res) => {
         const { sdk } = sdkObj;
-        const { accountId, isSandbox } = getSelectedToken(1);
+        const { accountId, isSandbox, brokerId } = getSelectedToken(1);
 
-        if (!accountId) {
+        if (!accountId || brokerId === 'FINAM') {
             return res.status(404).end();
         }
 
@@ -120,6 +128,8 @@ const accountsRequest = sdkObj => {
     });
 
     app.get('/selectaccount', async (req, res) => {
+        const { sdk } = sdkObj;
+
         try {
             // Запрашиваем токен каждый раз, т.к. мог поменяться.
             // Знать sandbox или нет -- критично.
@@ -129,6 +139,10 @@ const accountsRequest = sdkObj => {
             addAccountIdToToken(token.token, id);
 
             token = getSelectedToken(1);
+
+            if (token.brokerId === 'FINAM') {
+                sdk.setSelectedAccountId(id);
+            }
 
             return res.json({ accountId: token.accountId });
         } catch (error) {

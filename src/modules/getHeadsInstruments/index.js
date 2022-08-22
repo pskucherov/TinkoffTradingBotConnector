@@ -187,16 +187,16 @@ try {
         return retData;
     };
 
-    const getBlueChipsShares = () => {
-        const shares = getSharesFromFile();
+    const getBlueChipsShares = (brokerId, sdk) => {
+        const shares = brokerId === 'FINAM' ? sdk.getShares() : getSharesFromFile();
         const blueChips = [];
 
         if (shares && shares.shares && shares.shares.instruments) {
             const i = shares.shares.instruments;
 
             for (const share of i) {
-                if (config.blueChips.includes(share.ticker)) {
-                    blueChips.push(filterData(share));
+                if (config.blueChips.includes(share.ticker || share.seccode)) {
+                    blueChips.push(brokerId === 'FINAM' ? share : filterData(share));
 
                     if (blueChips.length === config.blueChips.length) {
                         break;
@@ -211,15 +211,15 @@ try {
         };
     };
 
-    const getBlueChipsFutures = () => {
-        const futures = getFuturesFromFile();
+    const getBlueChipsFutures = (brokerId, sdk) => {
+        const futures = brokerId === 'FINAM' ? sdk.getFutures() : getFuturesFromFile();
         const blueChips = [];
 
         if (futures && futures.futures && futures.futures.instruments) {
             const i = futures.futures.instruments;
 
             for (const future of i) {
-                if (config.blueChips.includes(future.basicAsset)) {
+                if (brokerId === 'FINAM' || config.blueChips.includes(future.basicAsset)) {
                     blueChips.push(filterData(future));
                 }
             }

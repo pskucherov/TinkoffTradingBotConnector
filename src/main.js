@@ -7,9 +7,10 @@ const { logger, sdkLogger } = require('./modules/logger');
 const hmr = require('node-hmr');
 const { robotConnector } = require('./modules/robotConnector');
 const { TConnector } = require('tconnector/tconnector');
+const { accountsRequest } = require('./modules/accounts');
 
 try {
-    const tinkofftradingbot = (bots = {}) => {
+    const tinkofftradingbot = (bots = {}) => { // eslint-disable-line sonarjs/cognitive-complexity
         const { createSdk } = require('tinkoff-sdk-grpc-js');
 
         const { app } = require('./modules/server');
@@ -31,23 +32,33 @@ try {
         chokidar
             .watch([config.files.tokens])
             .on('all', () => {
-                tokenFromJson = getSelectedToken(1);
-                if (tokenFromJson && tokenFromJson.token) {
-                    token = tokenFromJson.token;
-                    brokerId = tokenFromJson.brokerId;
+                const oldBroderId = brokerId;
+                const oldToken = token;
 
-                    if (brokerId === 'TINKOFF') {
-                        sdk.sdk = createSdk(token, appName, sdkLogger);
-                        prepareServer(sdk);
-                        robotConnector(sdk, bots);
-                    } else if (brokerId === 'FINAM') {
-                        if (sdk.sdk) {
-                            sdk.sdk.disconnect();
+                tokenFromJson = getSelectedToken(1);
+
+                try {
+                    if (tokenFromJson && tokenFromJson.token) {
+                        token = tokenFromJson.token;
+                        brokerId = tokenFromJson.brokerId;
+
+                        if (brokerId === 'TINKOFF') {
+                            sdk.sdk = createSdk(token, appName, sdkLogger);
+                            prepareServer(sdk);
+                            robotConnector(sdk, bots);
+                        } else if (brokerId === 'FINAM' && (oldBroderId !== brokerId || oldToken !== token)) {
+                            if (sdk.sdk) {
+                                sdk.sdk.disconnect();
+                            }
+
+                            sdk.sdk = new TConnector();
+                            sdk.sdk.connect(token, tokenFromJson.password, tokenFromJson.accountId);
+                            checkFinamServer(sdk.sdk);
+                            accountsRequest(sdk);
                         }
-                        sdk.sdk = new TConnector();
-                        sdk.sdk.connect(token, tokenFromJson.password); // 'FZTC17102A', 'Test');
-                        checkFinamServer(sdk.sdk);
                     }
+                } catch (e) {
+                    console.log(e); // eslint-disable-line no-console
                 }
             });
 

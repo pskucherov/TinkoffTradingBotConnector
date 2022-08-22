@@ -8,7 +8,12 @@ const { getFutures, getEtfs, getShares, getBlueChipsShares,
     getCachedOrderBook,
     getLastPriceAndOrderBook,
     getSharesPage,
-    getEtfsPage } = require('./index');
+    getEtfsPage,
+    getLastPriceAndOrderBook
+} = require('./index');
+
+const { getSelectedToken } = require('../tokens');
+
 
 try {
     // Получение списка фьючерсов и акций, если их нет.
@@ -44,20 +49,25 @@ try {
         }
     };
 
-    const instrumentsRequest = sdk => {
+    const instrumentsRequest = sdkObj => {
         app.get('/bluechipsshares', (req, res) => {
+            const { brokerId } = getSelectedToken(1);
+            const { sdk } = sdkObj;
+
             try {
-                return res
-                    .json(getBlueChipsShares());
+                return res.json(getBlueChipsShares(brokerId, sdk));
             } catch (error) {
                 logger(0, error, res);
             }
         });
 
         app.get('/bluechipsfutures', (req, res) => {
+            const { brokerId } = getSelectedToken(1);
+            const { sdk } = sdkObj;
+
             try {
                 return res
-                    .json(getBlueChipsFutures(sdk.sdk));
+                    .json(getBlueChipsFutures(brokerId, sdk));
             } catch (error) {
                 logger(0, error, res);
             }
@@ -100,7 +110,7 @@ try {
 
         app.get('/tradingschedules', async (req, res) => {
             try {
-                const data = await getTradingSchedules(sdk.sdk, req.query.exchange, req.query.from, req.query.to);
+                const data = await getTradingSchedules(sdkObj.sdk, req.query.exchange, req.query.from, req.query.to);
 
                 if (!data) {
                     return res.status(404).end();
@@ -116,7 +126,7 @@ try {
             const figi = req.params.figi;
 
             try {
-                const candles = await getCandles(sdk.sdk, figi, req.query.interval, req.query.from, req.query.to);
+                const candles = await getCandles(sdkObj.sdk, figi, req.query.interval, req.query.from, req.query.to);
 
                 return res
                     .json(candles);
@@ -130,7 +140,7 @@ try {
 
             try {
                 return res
-                    .json(await getLastPriceAndOrderBook(sdk.sdk, figi));
+                    .json(await getLastPriceAndOrderBook(sdkObj.sdk, figi));
             } catch (error) {
                 logger(0, error, res);
             }
