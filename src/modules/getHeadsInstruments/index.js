@@ -428,7 +428,7 @@ try {
     };
 
     // Стакан может браться только из закэшированных данных.
-    const getCachedOrderBook = (figi, date) => {
+    const getCachedOrderBook = (figi, date, ignoreLastPrice = false) => {
         const localDate = new Date(Number(date)).toLocaleString('ru', config.dateOptions);
         const nowDate = new Date().toLocaleString('ru', config.dateOptions);
         let obFileCache;
@@ -438,7 +438,7 @@ try {
         // const obFile = path.resolve(config.files.orderbookCacheDir, figi, localDate + 'compressedstr.json');
 
         if (fs.existsSync(obFileOrig) && (localDate === nowDate || !fs.existsSync(obFile))) {
-            obFileCache = orderBookCompressor(obFileOrig, obFile);
+            obFileCache = orderBookCompressor(obFileOrig, obFile, ignoreLastPrice);
         }
 
         if (!obFileCache && fs.existsSync(obFile)) {

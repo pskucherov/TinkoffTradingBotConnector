@@ -5,7 +5,7 @@ const configFile = path.join(__dirname, './config.js');
 const config = require(configFile);
 const { logger, sdkLogger } = require('./modules/logger');
 const hmr = require('node-hmr');
-const { robotConnector } = require('./modules/robotConnector');
+const { robotConnector, finamRobotConnector } = require('./modules/robotConnector');
 const { TConnector } = require('tconnector/tconnector');
 const { accountsRequest } = require('./modules/accounts');
 
@@ -55,6 +55,8 @@ try {
                             sdk.sdk.connect(token, tokenFromJson.password, tokenFromJson.accountId);
                             checkFinamServer(sdk.sdk);
                             accountsRequest(sdk);
+
+                            finamRobotConnector(sdk, bots);
                         }
                     }
                 } catch (e) {

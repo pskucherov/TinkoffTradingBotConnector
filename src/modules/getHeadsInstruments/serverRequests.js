@@ -9,11 +9,13 @@ const { getFutures, getEtfs, getShares, getBlueChipsShares,
     getLastPriceAndOrderBook,
     getSharesPage,
     getEtfsPage,
-    getLastPriceAndOrderBook
+    getLastPriceAndOrderBook,
+    getRobotStateCachePath,
 } = require('./index');
 
 const { getSelectedToken } = require('../tokens');
 
+const fs = require('fs');
 
 try {
     // Получение списка фьючерсов и акций, если их нет.
@@ -108,6 +110,23 @@ try {
             }
         });
 
+        app.get('/seccode/:seccode', (req, res) => {
+            const seccode = req.params.seccode;
+            const { sdk } = sdkObj;
+
+            try {
+                const data = sdk.getInfoByFigi(seccode);
+
+                if (!data) {
+                    return res.status(404).end();
+                }
+
+                return res.json(data);
+            } catch (error) {
+                logger(0, error, res);
+            }
+        });
+
         app.get('/tradingschedules', async (req, res) => {
             try {
                 const data = await getTradingSchedules(sdkObj.sdk, req.query.exchange, req.query.from, req.query.to);
@@ -135,6 +154,40 @@ try {
             }
         });
 
+        app.get('/getfinamcandles/:figi', async (req, res) => {
+            const figi = req.params.figi;
+            const { sdk } = sdkObj;
+            const { interval } = req.query;
+
+            const from = Number(req.query.from);
+            const to = Number(req.query.to);
+
+            const isToday = new Date().toDateString() === new Date(from).toDateString();
+
+            try {
+                sdk.getHistoryDataActual(figi, interval, isToday);
+
+                // const i = setInterval(() => {
+                const d = sdk.getHistoryData(figi, interval);
+
+                //     if (d) {
+                //         clearInterval(i);
+                const oldKeys = !isToday && d && Object.keys(d)
+                    .some(d => d < from);
+
+                const keys = (isToday || oldKeys) && d && Object.keys(d)
+                    .filter(d => Boolean(d >= from && d <= to))
+                    .sort() || [];
+
+                return res.json({ candles: keys.map(k => d[k]) });
+
+                //     }
+                // }, 1000);
+            } catch (error) {
+                logger(0, error, res);
+            }
+        });
+
         app.get('/getlastpriceandorderbook/:figi', async (req, res) => {
             const figi = req.params.figi;
 
@@ -142,6 +195,36 @@ try {
                 return res
                     .json(await getLastPriceAndOrderBook(sdkObj.sdk, figi));
             } catch (error) {
+                logger(0, error, res);
+            }
+        });
+
+        app.get('/getfinamorderbook/:figi', async (req, res) => {
+            try {
+                const figi = req.params.figi;
+                const { sdk } = sdkObj;
+
+                const time = req.query.time;
+                const date = time ? Number(time) : new Date().getTime();
+                const data = time && getCachedOrderBook(figi, date, 1);
+
+                if (data) {
+                    return res.json(data);
+                }
+
+                const orderbook = sdk.getQuotes(figi);
+
+                if (!orderbook) {
+                    return res.status(404).end();
+                }
+
+                const fileName = getRobotStateCachePath(figi, date);
+
+                fs.writeFileSync(fileName, JSON.stringify([0, orderbook]) + '\r\n', { flag: 'a' });
+
+                return res.json([0, orderbook]);
+            } catch (error) {
+                console.log(error);
                 logger(0, error, res);
             }
         });

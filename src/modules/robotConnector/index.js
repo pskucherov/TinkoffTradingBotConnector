@@ -11,6 +11,137 @@ let robotStarted;
 let bots;
 
 try {
+    const finamRobotConnector = (sdkObj, botLib) => { // eslint-disable-line
+        if (!sdkObj.sdk || !botLib) {
+            return;
+        }
+
+        const { sdk } = sdkObj;
+
+        bots = botLib.bots;
+
+        app.get('/robots/start/:figi', async (req, res) => {
+            try {
+                if (robotStarted) {
+                    return res.json(robotStarted);
+                }
+
+                const name = req.query.name;
+                const backtest = Number(req.query.backtest);
+
+                const robot = new bots[name](
+                    req.query.accountId,
+                    Number(req.query.adviser),
+                    Number(req.query.backtest),
+                    {
+                        subscribes: {
+                            // lastPrice: lastPriceSubscribe(req.params.figi),
+                            // orderbook: orderBookSubscribe(req.params.figi),
+                            // orders: ordersStream.tradesStream,
+                        },
+
+                        // getTradingSchedules: getTradingSchedules.bind(this, sdkObj.sdk),
+                        // cacheState,
+                        // postOrder,
+                        // getOrders,
+                        // getOrderState,
+                        // cancelOrder,
+                        // getPortfolio,
+                        // getPositions,
+                        // getOperations,
+                    },
+                    {
+                        token: getSelectedToken(),
+                        enums: {
+                            // CandleInterval,
+                            // InstrumentStatus,
+                            // InstrumentIdType,
+                            // SubscriptionInterval,
+                            // OrderDirection,
+                            // OrderType,
+                        },
+                        isSandbox: false,
+                    },
+                );
+
+                if (bots[name]) {
+                    robotStarted = {
+                        robot,
+                        name,
+                    };
+
+                    robot.start();
+
+                    if (backtest) {
+                        robot.setBacktestState(0, req.query.interval, req.params.figi, req.query.date, {
+                            tickerInfo: sdk.getInfoByFigi(req.params.figi),
+                        });
+                    } else {
+                        robot.setCurrentState(undefined, undefined, undefined, undefined, {
+                            tickerInfo: sdk.getInfoByFigi(req.params.figi),
+                        });
+                    }
+                }
+
+                return res.json({
+                    ...robotStarted,
+                });
+            } catch (err) {
+                console.log(err);
+                logger(0, err);
+            }
+        });
+
+        app.get('/robots/backtest/step/:step', async (req, res) => {
+            try {
+                const step = Number(req.params.step);
+
+                if (!robotStarted || !step || step < 1) {
+                    return res.status(404).end();
+                }
+
+                const {
+                    robot,
+                } = robotStarted;
+
+                if (!robot) {
+                    return res.status(404).end();
+                }
+
+                const { figi, interval, date } = robot.getBacktestState();
+
+                robot.setBacktestState(step);
+
+                const candles = await getCandlesToBacktest(figi, interval, date, step);
+
+                // TODO: брать по времени свечи, а не шагу
+                const orderbook = getCachedOrderBook(figi, date);
+
+                if (!candles && !orderbook) {
+                    return res.status(404).end();
+                }
+
+                const lastPrice = candles && candles[candles.length - 1] && candles[candles.length - 1].close;
+
+                robotStarted.robot.setCurrentState(
+                    lastPrice,
+                    candles,
+                    undefined,
+                    orderbook,
+                );
+
+                //setTimeout(() => {
+                return res.json(await robotStarted.robot.getPositions());
+
+                //}, (robotStarted.robot.getParams['timer'] + 50));
+
+                // robotStarted.robot.
+            } catch (err) {
+                logger(0, err);
+            }
+        });
+    };
+
     const robotConnector = (sdkObj, botLib, isSandbox) => { // eslint-disable-line
         if (!sdkObj.sdk || !botLib) {
             return;
@@ -438,6 +569,7 @@ try {
 
     module.exports = {
         robotConnector,
+        finamRobotConnector,
     };
 } catch (error) {
     logger(0, error);
