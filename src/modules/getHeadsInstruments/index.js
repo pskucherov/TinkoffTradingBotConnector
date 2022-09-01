@@ -231,13 +231,13 @@ try {
         };
     };
 
-    const getSharesPage = () => {
-        const shares = getSharesFromFile();
+    const getSharesPage = (sdk, brokerId) => {
+        const shares = brokerId === 'FINAM' ? sdk.getShares() : getSharesFromFile();
 
         return {
             updatedDate: shares.updateDate,
             instruments: shares.shares.instruments.filter(i => {
-                return i.shortEnabledFlag;
+                return i.shortEnabledFlag || brokerId === 'FINAM';
             }),
         };
     };
@@ -375,6 +375,70 @@ try {
         return candles;
     };
 
+    /**
+     * Получить свечи инструмента.
+     * Пытается взять из кэша, если не получается, то сохраняет их туда.
+     * Кэширование включено только для предыдущих дат.
+     * Для текущего дня данные всегда без кэша
+     *
+     * @param {*} sdk
+     * @param {String} figi
+     * @param {Number} interval
+     * @param {String} from
+     * @param {?String} to
+     * @returns
+     */
+    const getFinamCandles = async (sdkObj, figi, interval, from, to) => {
+        if (!figi) {
+            return;
+        }
+
+        const { sdk } = sdkObj;
+        const isToday = new Date().toDateString() === new Date(from).toDateString();
+
+        const useCache = !isToday;
+
+        from = new Date(Number(from));
+        to = new Date(Number(to));
+
+        let filePath = useCache && getCacheCandlesPath(figi, interval, from, to);
+        let candles;
+
+        console.log(isToday, new Date().toDateString(), new Date(from).toDateString(), useCache);
+        if (useCache && filePath && fs.existsSync(filePath)) {
+            filePath = getCacheCandlesPath(figi, interval, from, to);
+            candles = getCandlesFromCache(filePath);
+
+            if (candles) {
+                return candles;
+            }
+        }
+
+        console.log('getFinamCandles getHistoryDataActual', figi, interval, isToday);
+        await sdk.getHistoryDataActual(figi, interval, isToday);
+        const historyData = sdk.getHistoryData(figi, interval);
+
+        const oldKeys = !isToday &&
+            historyData &&
+            Object.keys(historyData).some(d => (Number(d) < from.getTime()));
+
+        if (oldKeys) {
+            console.log('oldKeys', oldKeys);
+        }
+
+        const keys = (isToday || oldKeys) && historyData && Object.keys(historyData)
+            .filter(d => Boolean(Number(d) >= from.getTime() && Number(d) <= to.getTime()))
+            .sort() || [];
+
+        candles = { candles: keys.map(k => historyData[k]) };
+
+        if (useCache && filePath && candles.candles.length) {
+            setCandlesToCache(filePath, candles);
+        }
+
+        return candles;
+    };
+
     const getLastPriceAndOrderBook = async (sdk, figi) => {
         const { marketData } = sdk.sdk || sdk;
 
@@ -475,6 +539,8 @@ try {
 
         getLastPriceAndOrderBook,
         getRobotStateCachePath,
+
+        getFinamCandles,
     };
 } catch (error) {
     logger(0, error);

@@ -9,8 +9,8 @@ const { getFutures, getEtfs, getShares, getBlueChipsShares,
     getLastPriceAndOrderBook,
     getSharesPage,
     getEtfsPage,
-    getLastPriceAndOrderBook,
     getRobotStateCachePath,
+    getFinamCandles,
 } = require('./index');
 
 const { getSelectedToken } = require('../tokens');
@@ -76,9 +76,12 @@ try {
         });
 
         app.get('/shares', (req, res) => {
+            const { brokerId } = getSelectedToken(1);
+            const { sdk } = sdkObj;
+
             try {
                 return res
-                    .json(getSharesPage(sdk.sdk));
+                    .json(getSharesPage(sdk, brokerId));
             } catch (error) {
                 logger(0, error, res);
             }
@@ -110,12 +113,12 @@ try {
             }
         });
 
-        app.get('/seccode/:seccode', (req, res) => {
+        app.get('/seccode/:seccode', async (req, res) => {
             const seccode = req.params.seccode;
             const { sdk } = sdkObj;
 
             try {
-                const data = sdk.getInfoByFigi(seccode);
+                const data = await sdk.getInfoByFigi(seccode);
 
                 if (!data) {
                     return res.status(404).end();
@@ -156,33 +159,12 @@ try {
 
         app.get('/getfinamcandles/:figi', async (req, res) => {
             const figi = req.params.figi;
-            const { sdk } = sdkObj;
-            const { interval } = req.query;
-
-            const from = Number(req.query.from);
-            const to = Number(req.query.to);
-
-            const isToday = new Date().toDateString() === new Date(from).toDateString();
 
             try {
-                sdk.getHistoryDataActual(figi, interval, isToday);
+                const candles = await getFinamCandles(sdkObj, figi, req.query.interval, req.query.from, req.query.to);
 
-                // const i = setInterval(() => {
-                const d = sdk.getHistoryData(figi, interval);
-
-                //     if (d) {
-                //         clearInterval(i);
-                const oldKeys = !isToday && d && Object.keys(d)
-                    .some(d => d < from);
-
-                const keys = (isToday || oldKeys) && d && Object.keys(d)
-                    .filter(d => Boolean(d >= from && d <= to))
-                    .sort() || [];
-
-                return res.json({ candles: keys.map(k => d[k]) });
-
-                //     }
-                // }, 1000);
+                return res
+                    .json(candles);
             } catch (error) {
                 logger(0, error, res);
             }
@@ -207,12 +189,22 @@ try {
                 const time = req.query.time;
                 const date = time ? Number(time) : new Date().getTime();
                 const data = time && getCachedOrderBook(figi, date, 1);
+                const isToday = new Date().toDateString() === new Date(date).toDateString();
+
+                console.log('getfinamorderbook', 1, 'isToday',
+                    isToday, new Date().toDateString(), new Date(date).toDateString());
 
                 if (data) {
                     return res.json(data);
+                } else if (!isToday) {
+                    console.log('getfinamorderbook', 2);
+
+                    return res.status(404).end();
                 }
 
                 const orderbook = sdk.getQuotes(figi);
+
+                console.log('getfinamorderbook', 2, orderbook);
 
                 if (!orderbook) {
                     return res.status(404).end();
@@ -224,7 +216,6 @@ try {
 
                 return res.json([0, orderbook]);
             } catch (error) {
-                console.log(error);
                 logger(0, error, res);
             }
         });

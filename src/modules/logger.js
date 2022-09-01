@@ -15,7 +15,9 @@ const logger = (type, error, res) => {
     if (!error) {
         error = 'Отсутствует текст ошибки!';
     } else if (typeof error === 'object') {
-        error = JSON.stringify(error);
+        const newErr = JSON.stringify(error);
+
+        console.log(newErr);
     }
 
     console.log(error);
