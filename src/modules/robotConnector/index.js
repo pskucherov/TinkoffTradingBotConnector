@@ -62,6 +62,32 @@ try {
             } catch (e) { logger(1, e) }
         };
 
+        const getQuotationsAndOrderbook = figi => {
+            try {
+                // {"totalAmountShares":{"currency":"rub","units":2424,"nano":800000000},"totalAmountBonds":{"currency":"rub","units":0,"nano":0},"totalAmountEtf":{"currency":"rub","units":0,"nano":0},"totalAmountCurrencies":{"currency":"rub","units":9533,"nano":350000000},"totalAmountFutures":{"currency":"rub","units":0,"nano":0},"expectedYield":{"units":0,"nano":-340000000},"positions":[{"figi":"BBG004730N88","instrumentType":"share","quantity":{"units":20,"nano":0},"averagePositionPrice":{"currency":"rub","units":123,"nano":270000000},"expectedYield":{"units":-40,"nano":-600000000},"currentNkd":{"currency":"rub","units":0,"nano":0},"currentPrice":{"currency":"rub","units":121,"nano":240000000},"averagePositionPriceFifo":{"currency":"rub","units":123,"nano":270000000},"quantityLots":{"units":2,"nano":0}}]}
+                const q = sdk.getQuotations(figi);
+
+                return q || {};
+            } catch (e) { logger(1, e) }
+        };
+
+        const postOrder = async (accountId, figi, quantity, price, direction, orderType, orderId) => { // eslint-disable-line max-params
+            try {
+                // const command = isSandbox ? postSandboxOrder : orders.postOrder;
+                const command = {};
+
+                return await command({
+                    accountId,
+                    figi,
+                    quantity,
+                    price,
+                    direction, // OrderDirection.ORDER_DIRECTION_BUY,
+                    orderType, // OrderType.ORDER_TYPE_LIMIT,
+                    orderId, //: 'abc-fsdfdsfsdf-2',
+                });
+            } catch (e) { logger(1, e) }
+        };
+
         app.get('/robots/start/:figi', async (req, res) => {
             try {
                 if (robotStarted) {
@@ -85,11 +111,13 @@ try {
                         // getTradingSchedules: getTradingSchedules.bind(this, sdkObj.sdk),
                         cacheState,
 
-                        // postOrder,
+                        postOrder,
+
                         // getOrders,
                         // getOrderState,
                         // cancelOrder,
                         getPortfolio: getFinamPositions,
+                        getQuotationsAndOrderbook,
 
                         // getPositions,
                         // getOperations,
@@ -136,7 +164,6 @@ try {
                     ...robotStarted,
                 });
             } catch (err) {
-                console.log(err);
                 logger(0, err);
             }
         });
