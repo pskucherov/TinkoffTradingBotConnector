@@ -90,7 +90,7 @@ try {
         app.get('/etfs', (req, res) => {
             try {
                 return res
-                    .json(getEtfsPage(sdk.sdk));
+                    .json(getEtfsPage(sdkObj.sdk));
             } catch (error) {
                 logger(0, error, res);
             }
@@ -191,20 +191,13 @@ try {
                 const data = time && getCachedOrderBook(figi, date, 1);
                 const isToday = new Date().toDateString() === new Date(date).toDateString();
 
-                console.log('getfinamorderbook', 1, 'isToday',
-                    isToday, new Date().toDateString(), new Date(date).toDateString());
-
                 if (data) {
                     return res.json(data);
                 } else if (!isToday) {
-                    console.log('getfinamorderbook', 2);
-
                     return res.status(404).end();
                 }
 
-                const orderbook = sdk.getQuotes(figi);
-
-                console.log('getfinamorderbook', 2, orderbook);
+                const orderbook = sdk.getQuotations(figi);
 
                 if (!orderbook) {
                     return res.status(404).end();

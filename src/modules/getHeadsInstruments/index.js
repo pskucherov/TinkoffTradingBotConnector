@@ -393,18 +393,17 @@ try {
             return;
         }
 
+        from = new Date(Number(from));
+        to = new Date(Number(to));
+
         const { sdk } = sdkObj;
         const isToday = new Date().toDateString() === new Date(from).toDateString();
 
         const useCache = !isToday;
 
-        from = new Date(Number(from));
-        to = new Date(Number(to));
-
         let filePath = useCache && getCacheCandlesPath(figi, interval, from, to);
         let candles;
 
-        console.log(isToday, new Date().toDateString(), new Date(from).toDateString(), useCache);
         if (useCache && filePath && fs.existsSync(filePath)) {
             filePath = getCacheCandlesPath(figi, interval, from, to);
             candles = getCandlesFromCache(filePath);
@@ -414,17 +413,12 @@ try {
             }
         }
 
-        console.log('getFinamCandles getHistoryDataActual', figi, interval, isToday);
         await sdk.getHistoryDataActual(figi, interval, isToday);
         const historyData = sdk.getHistoryData(figi, interval);
 
         const oldKeys = !isToday &&
             historyData &&
             Object.keys(historyData).some(d => (Number(d) < from.getTime()));
-
-        if (oldKeys) {
-            console.log('oldKeys', oldKeys);
-        }
 
         const keys = (isToday || oldKeys) && historyData && Object.keys(historyData)
             .filter(d => Boolean(Number(d) >= from.getTime() && Number(d) <= to.getTime()))
