@@ -95,6 +95,44 @@ const saveToken = (isSandbox, token, brokerId, password) => {
 };
 
 /**
+ * Изменяет пароль в выбранном токене.
+ *
+ * @param {Boolean} isSandbox
+ * @param {String} token
+ */
+const changePassword = (sdk, token, oldpass, newpass) => {
+    try {
+        const file = fs.readFileSync(fileName, 'utf8');
+        const selected = getSelectedToken(1);
+
+        if (selected.password === oldpass && selected.token === token) {
+            const tokens = JSON.parse(file);
+
+            const index = tokens.findIndex(t => t.token === selected.token);
+
+            if (index === -1) {
+                return false;
+            }
+
+            const message = sdk.changePassword(oldpass, newpass);
+
+            if (message && message.result && message.result.success === 'true') {
+                tokens[index].password = newpass;
+                fs.writeFileSync(fileName, JSON.stringify(tokens));
+
+                return true;
+            }
+
+            return false;
+        }
+
+        return false;
+    } catch (e) {
+        console.log('changePassword', e); // eslint-disable-line no-console
+    }
+};
+
+/**
  * Удаляет токен.
  *
  * @param {String} token
@@ -129,6 +167,24 @@ const checkFinamServer = async sdk => {
         const status = sdk.checkServerStatus();
 
         return res.json(status);
+    });
+
+    app.get('/changepassword', async (req, res) => {
+        const { token, oldpassword, newpassword, brokerId } = req.query;
+
+        if (brokerId === 'FINAM') {
+            const changePass = changePassword(sdk, token, oldpassword, newpassword);
+
+            if (!changePass) {
+                return res.json({ error: true });
+            }
+
+            return res
+                .json({
+                    token,
+                    brokerId,
+                });
+        }
     });
 };
 
@@ -270,4 +326,5 @@ module.exports = {
     getSelectedToken,
     addAccountIdToToken,
     checkFinamServer,
+    changePassword,
 };

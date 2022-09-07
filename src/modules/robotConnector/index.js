@@ -73,18 +73,17 @@ try {
 
         const postOrder = async (accountId, figi, quantity, price, direction, orderType, orderId) => { // eslint-disable-line max-params
             try {
-                // const command = isSandbox ? postSandboxOrder : orders.postOrder;
-                const command = {};
+                const order = await sdk.newOrder(figi, price - 3, quantity,
+                    direction === 1 ? 'B' : 'S', robotStarted.robot.name,
+                );
 
-                return await command({
-                    accountId,
-                    figi,
-                    quantity,
-                    price,
-                    direction, // OrderDirection.ORDER_DIRECTION_BUY,
-                    orderType, // OrderType.ORDER_TYPE_LIMIT,
-                    orderId, //: 'abc-fsdfdsfsdf-2',
-                });
+                if (typeof order === 'string') {
+                    logger(1, order);
+
+                    return false;
+                }
+
+                return order;
             } catch (e) { logger(1, e) }
         };
 
@@ -134,7 +133,10 @@ try {
                                 ORDER_DIRECTION_SELL: 2,
                             },
 
-                            // OrderType,
+                            OrderType: {
+                                ORDER_TYPE_LIMIT: 1,
+                                ORDER_TYPE_MARKET: 2,
+                            },
                         },
                         isSandbox: false,
                         brokerId: 'FINAM',
