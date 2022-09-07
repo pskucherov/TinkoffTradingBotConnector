@@ -53,12 +53,30 @@ try {
 
         bots = botLib.bots;
 
+        const getOrders = async (accountId, figi) => {
+            if (!figi) {
+                return [];
+            }
+
+            try {
+                const o = await sdk.getOrders(figi);
+
+                return { orders: o || [] };
+            } catch (e) { logger(1, e) }
+        };
+
+        const cancelOrder = async (accountId, orderId) => {
+            try {
+                return await sdk.cancelOrder(orderId);
+            } catch (e) { logger(1, e) }
+        };
+
         const getFinamPositions = async () => {
             try {
                 // {"totalAmountShares":{"currency":"rub","units":2424,"nano":800000000},"totalAmountBonds":{"currency":"rub","units":0,"nano":0},"totalAmountEtf":{"currency":"rub","units":0,"nano":0},"totalAmountCurrencies":{"currency":"rub","units":9533,"nano":350000000},"totalAmountFutures":{"currency":"rub","units":0,"nano":0},"expectedYield":{"units":0,"nano":-340000000},"positions":[{"figi":"BBG004730N88","instrumentType":"share","quantity":{"units":20,"nano":0},"averagePositionPrice":{"currency":"rub","units":123,"nano":270000000},"expectedYield":{"units":-40,"nano":-600000000},"currentNkd":{"currency":"rub","units":0,"nano":0},"currentPrice":{"currency":"rub","units":121,"nano":240000000},"averagePositionPriceFifo":{"currency":"rub","units":123,"nano":270000000},"quantityLots":{"units":2,"nano":0}}]}
                 const p = await sdk.getPortfolioAsync();
 
-                return p && p.security || [];
+                return { positions: p && p.security || [] };
             } catch (e) { logger(1, e) }
         };
 
@@ -73,7 +91,7 @@ try {
 
         const postOrder = async (accountId, figi, quantity, price, direction, orderType, orderId) => { // eslint-disable-line max-params
             try {
-                const order = await sdk.newOrder(figi, price - 3, quantity,
+                const order = await sdk.newOrder(figi, price, quantity,
                     direction === 1 ? 'B' : 'S', robotStarted.robot.name,
                 );
 
@@ -86,6 +104,36 @@ try {
                 return order;
             } catch (e) { logger(1, e) }
         };
+
+        app.get('/robots/cancelorder', async (req, res) => {
+            try {
+                const {
+                    transactionid,
+                } = req.query;
+
+                await cancelOrder(0, transactionid);
+
+                return res.status(404).end();
+            } catch (err) {
+                logger(0, err);
+            }
+        });
+
+        app.get('/robots/cancelposition', async (req, res) => {
+            try {
+                const {
+                    figi, price, quantity, direction,
+                } = req.query;
+
+                const order = await sdk.newOrder(figi, price, quantity,
+                    direction === 1 ? 'B' : 'S', robotStarted.robot.name,
+                );
+
+                return res.json(order);
+            } catch (err) {
+                logger(0, err);
+            }
+        });
 
         app.get('/robots/start/:figi', async (req, res) => {
             try {
@@ -112,9 +160,10 @@ try {
 
                         postOrder,
 
-                        // getOrders,
+                        getOrders,
+
                         // getOrderState,
-                        // cancelOrder,
+                        cancelOrder,
                         getPortfolio: getFinamPositions,
                         getQuotationsAndOrderbook,
 
@@ -524,6 +573,7 @@ try {
                     state),
                 positions: await robotStarted.robot.getPositions(),
                 orders: await robotStarted.robot.getOrders(),
+                tickerInfo: robotStarted.robot.getTickerInfo(),
             });
         }
 
