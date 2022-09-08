@@ -122,12 +122,20 @@ try {
         app.get('/robots/cancelposition', async (req, res) => {
             try {
                 const {
-                    figi, price, quantity, direction,
+                    figi, direction, lots,
                 } = req.query;
 
-                const order = await sdk.newOrder(figi, price, quantity,
-                    direction === 1 ? 'B' : 'S', robotStarted.robot.name,
+                // Приходит direction текущей позиции. 1 - B, 2 - S.
+                // Для закрытия позиции выставляем противоположную.
+                const order = await sdk.newOrder(figi, 0, Number(lots),
+                    Number(direction) === 1 ? 'S' : 'B', robotStarted.robot.name,
                 );
+
+                if (typeof order === 'string') {
+                    logger(1, order);
+
+                    return res.status(404).end();
+                }
 
                 return res.json(order);
             } catch (err) {
