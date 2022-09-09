@@ -53,6 +53,17 @@ try {
 
         bots = botLib.bots;
 
+        app.get('/robots/tconnectordebug', async (req, res) => {
+            const answer = { ...sdk };
+
+            delete answer.securities;
+            delete answer.subscribes;
+            delete answer.shares;
+            delete answer.futures;
+
+            return res.json(answer);
+        });
+
         const getOrders = async (accountId, figi) => {
             if (!figi) {
                 return [];
