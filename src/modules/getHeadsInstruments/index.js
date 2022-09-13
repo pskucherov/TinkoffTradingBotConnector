@@ -397,7 +397,9 @@ try {
         to = new Date(Number(to));
 
         const { sdk } = sdkObj;
-        const isToday = new Date().toDateString() === new Date(from).toDateString();
+        const isToday = to ?
+            new Date().toDateString() === new Date(to).toDateString() :
+            new Date().toDateString() === new Date(from).toDateString();
 
         const useCache = !isToday;
 
@@ -414,7 +416,7 @@ try {
         }
 
         await sdk.getHistoryDataActual(figi, interval, isToday);
-        const historyData = sdk.getHistoryData(figi, interval);
+        const historyData = await sdk.getHistoryData(figi, interval);
 
         const oldKeys = !isToday &&
             historyData &&
