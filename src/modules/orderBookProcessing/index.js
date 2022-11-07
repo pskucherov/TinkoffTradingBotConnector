@@ -14,7 +14,7 @@ try {
         return file && file.split('\r\n');
     };
 
-    const orderBookCompressor = (filename, newFilename) => {
+    const orderBookCompressor = (filename, newFilename, ignoreLastPrice = false) => {
         const ob = getOBFromFile(filename);
 
         const newOrderBook = {};
@@ -26,7 +26,7 @@ try {
 
             const oneString = JSON.parse(s);
 
-            if (!oneString[0] || !oneString[1]) {
+            if (!ignoreLastPrice && !oneString[0] || !oneString[1]) {
                 return;
             }
 

@@ -187,16 +187,16 @@ try {
         return retData;
     };
 
-    const getBlueChipsShares = () => {
-        const shares = getSharesFromFile();
+    const getBlueChipsShares = (brokerId, sdk) => {
+        const shares = brokerId === 'FINAM' ? sdk.getShares() : getSharesFromFile();
         const blueChips = [];
 
         if (shares && shares.shares && shares.shares.instruments) {
             const i = shares.shares.instruments;
 
             for (const share of i) {
-                if (config.blueChips.includes(share.ticker)) {
-                    blueChips.push(filterData(share));
+                if (config.blueChips.includes(share.ticker || share.seccode)) {
+                    blueChips.push(brokerId === 'FINAM' ? share : filterData(share));
 
                     if (blueChips.length === config.blueChips.length) {
                         break;
@@ -211,15 +211,15 @@ try {
         };
     };
 
-    const getBlueChipsFutures = () => {
-        const futures = getFuturesFromFile();
+    const getBlueChipsFutures = (brokerId, sdk) => {
+        const futures = brokerId === 'FINAM' ? sdk.getFutures() : getFuturesFromFile();
         const blueChips = [];
 
         if (futures && futures.futures && futures.futures.instruments) {
             const i = futures.futures.instruments;
 
             for (const future of i) {
-                if (config.blueChips.includes(future.basicAsset)) {
+                if (brokerId === 'FINAM' || config.blueChips.includes(future.basicAsset)) {
                     blueChips.push(filterData(future));
                 }
             }
@@ -231,13 +231,13 @@ try {
         };
     };
 
-    const getSharesPage = () => {
-        const shares = getSharesFromFile();
+    const getSharesPage = (sdk, brokerId) => {
+        const shares = brokerId === 'FINAM' ? sdk.getShares() : getSharesFromFile();
 
         return {
             updatedDate: shares.updateDate,
             instruments: shares.shares.instruments.filter(i => {
-                return i.shortEnabledFlag;
+                return i.shortEnabledFlag || brokerId === 'FINAM';
             }),
         };
     };
@@ -375,6 +375,66 @@ try {
         return candles;
     };
 
+    /**
+     * Получить свечи инструмента.
+     * Пытается взять из кэша, если не получается, то сохраняет их туда.
+     * Кэширование включено только для предыдущих дат.
+     * Для текущего дня данные всегда без кэша
+     *
+     * @param {*} sdk
+     * @param {String} figi
+     * @param {Number} interval
+     * @param {String} from
+     * @param {?String} to
+     * @returns
+     */
+    const getFinamCandles = async (sdkObj, figi, interval, from, to) => {
+        if (!figi) {
+            return;
+        }
+
+        from = new Date(Number(from));
+        to = new Date(Number(to));
+
+        const { sdk } = sdkObj;
+        const isToday = to ?
+            new Date().toDateString() === new Date(to).toDateString() :
+            new Date().toDateString() === new Date(from).toDateString();
+
+        const useCache = !isToday;
+
+        let filePath = useCache && getCacheCandlesPath(figi, interval, from, to);
+        let candles;
+
+        if (useCache && filePath && fs.existsSync(filePath)) {
+            filePath = getCacheCandlesPath(figi, interval, from, to);
+            candles = getCandlesFromCache(filePath);
+
+            if (candles) {
+                return candles;
+            }
+        }
+
+        await sdk.getHistoryDataActual(figi, interval, isToday);
+        const historyData = await sdk.getHistoryData(figi, interval);
+
+        const oldKeys = !isToday &&
+            historyData &&
+            Object.keys(historyData).some(d => (Number(d) < from.getTime()));
+
+        const keys = (isToday || oldKeys) && historyData && Object.keys(historyData)
+            .filter(d => Boolean(Number(d) >= from.getTime() && Number(d) <= to.getTime()))
+            .sort() || [];
+
+        candles = { candles: keys.map(k => historyData[k]) };
+
+        if (useCache && filePath && candles.candles.length) {
+            setCandlesToCache(filePath, candles);
+        }
+
+        return candles;
+    };
+
     const getLastPriceAndOrderBook = async (sdk, figi) => {
         const { marketData } = sdk.sdk || sdk;
 
@@ -428,7 +488,7 @@ try {
     };
 
     // Стакан может браться только из закэшированных данных.
-    const getCachedOrderBook = (figi, date) => {
+    const getCachedOrderBook = (figi, date, ignoreLastPrice = false) => {
         const localDate = new Date(Number(date)).toLocaleString('ru', config.dateOptions);
         const nowDate = new Date().toLocaleString('ru', config.dateOptions);
         let obFileCache;
@@ -438,7 +498,7 @@ try {
         // const obFile = path.resolve(config.files.orderbookCacheDir, figi, localDate + 'compressedstr.json');
 
         if (fs.existsSync(obFileOrig) && (localDate === nowDate || !fs.existsSync(obFile))) {
-            obFileCache = orderBookCompressor(obFileOrig, obFile);
+            obFileCache = orderBookCompressor(obFileOrig, obFile, ignoreLastPrice);
         }
 
         if (!obFileCache && fs.existsSync(obFile)) {
@@ -475,6 +535,8 @@ try {
 
         getLastPriceAndOrderBook,
         getRobotStateCachePath,
+
+        getFinamCandles,
     };
 } catch (error) {
     logger(0, error);

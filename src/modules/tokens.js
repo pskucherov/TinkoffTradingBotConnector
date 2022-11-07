@@ -67,6 +67,8 @@ const getSelectedToken = fullTokenData => {
             return fullTokenData ? t : t.token;
         }
     }
+
+    return {};
 };
 
 /**
@@ -76,19 +78,57 @@ const getSelectedToken = fullTokenData => {
  * @param {Boolean} isSandbox
  * @param {String} token
  */
-const saveToken = (isSandbox, token) => {
+const saveToken = (isSandbox, token, brokerId, password) => {
     const file = fs.readFileSync(fileName, 'utf8');
 
     if (!file.includes(token)) {
         const tokens = JSON.parse(file);
 
-        tokens.push({ token: token, isSandbox });
+        tokens.push({ token, isSandbox: Boolean(isSandbox), brokerId, password });
 
         if (tokens.length === 1) {
             tokens[0].selected = true;
         }
 
         fs.writeFileSync(fileName, JSON.stringify(tokens));
+    }
+};
+
+/**
+ * Изменяет пароль в выбранном токене.
+ *
+ * @param {Boolean} isSandbox
+ * @param {String} token
+ */
+const changePassword = (sdk, token, oldpass, newpass) => {
+    try {
+        const file = fs.readFileSync(fileName, 'utf8');
+        const selected = getSelectedToken(1);
+
+        if (selected.password === oldpass && selected.token === token) {
+            const tokens = JSON.parse(file);
+
+            const index = tokens.findIndex(t => t.token === selected.token);
+
+            if (index === -1) {
+                return false;
+            }
+
+            const message = sdk.changePassword(oldpass, newpass);
+
+            if (message && message.result && message.result.success === 'true') {
+                tokens[index].password = newpass;
+                fs.writeFileSync(fileName, JSON.stringify(tokens));
+
+                return true;
+            }
+
+            return false;
+        }
+
+        return false;
+    } catch (e) {
+        console.log('changePassword', e); // eslint-disable-line no-console
     }
 };
 
@@ -114,6 +154,38 @@ const delToken = token => {
  */
 const getTokens = () => {
     return JSON.parse(fs.readFileSync(fileName, 'utf8'));
+};
+
+const checkFinamServer = async sdk => {
+    app.get('/getfinamauthstatus', (req, res) => {
+        const data = getSelectedToken(1);
+
+        if (!data || data.brokerId !== 'FINAM') {
+            return res.status(404).end();
+        }
+
+        const status = sdk.checkServerStatus();
+
+        return res.json(status);
+    });
+
+    app.get('/changepassword', async (req, res) => {
+        const { token, oldpassword, newpassword, brokerId } = req.query;
+
+        if (brokerId === 'FINAM') {
+            const changePass = changePassword(sdk, token, oldpassword, newpassword);
+
+            if (!changePass) {
+                return res.json({ error: true });
+            }
+
+            return res
+                .json({
+                    token,
+                    brokerId,
+                });
+        }
+    });
 };
 
 const tokenRequest = createSdk => {
@@ -155,7 +227,7 @@ const tokenRequest = createSdk => {
         }
     });
 
-    app.get('*/getselectedtoken', async (req, res) => {
+    app.get('*/getncheckselectedtoken', async (req, res) => {
         try {
             const data = getSelectedToken(1);
 
@@ -170,14 +242,14 @@ const tokenRequest = createSdk => {
         }
     });
 
-    app.get('*/addtoken', async (req, res) => {
-        let userInfo;
+    const setTinkoffToken = async (res, token, brokerId) => {
         let sandboxAccounts;
-        let isSandbox = false;
-        let isProduction = false;
+        let isProduction;
+        let isSandbox;
+        let userInfo;
 
         try {
-            const sdk = createSdk(req.query.token, 'opexviewer.addtoken');
+            const sdk = createSdk(token, 'opexviewer.addtoken');
 
             // Сделать запрос к пользователю
             sandboxAccounts = Boolean(await sdk.sandbox.getSandboxAccounts({}));
@@ -187,24 +259,62 @@ const tokenRequest = createSdk => {
 
             // Ошибку не обрабатываем, т.к. в данном случае это ок.
             // В идеале в ответе иметь это сендбокс или нет.
-        } catch (e) {}
+        } catch (e) { return { error: 1 } }
 
         if (sandboxAccounts && userInfo) {
             isProduction = true;
         } else if (sandboxAccounts) {
             isSandbox = true;
         } else {
-            return res
-                .json({ error: true });
+            return { error: 1 };
+        }
+
+        saveToken(isSandbox, token, brokerId);
+
+        return { isProduction, isSandbox };
+    };
+
+    const setFinamToken = async (res, token, brokerId, password) => {
+        saveToken(false, token, brokerId, password);
+
+        return { isProduction: true, isSandbox: false };
+    };
+
+    app.get('*/addtoken', async (req, res) => {
+        const { token, brokerId, password } = req.query;
+
+        try {
+            if (brokerId === 'TINKOFF') {
+                const { isProduction, error } = await setTinkoffToken(res, token, brokerId);
+
+                if (error) {
+                    return res.json({ error: true });
+                }
+
+                return res
+                    .json({
+                        token: isProduction ? 'production' : 'sandbox',
+                        brokerId,
+                    });
+            }
+        } catch (error) {
+            logger(0, error, res);
         }
 
         try {
-            saveToken(isSandbox, req.query.token);
+            if (brokerId === 'FINAM') {
+                const { isSandbox, isProduction, error } = await setFinamToken(res, token, brokerId, password);
 
-            return res
-                .json({
-                    token: isProduction ? 'production' : 'sandbox',
-                });
+                if (error) {
+                    return res.json({ error: true });
+                }
+
+                return res
+                    .json({
+                        token: isProduction ? 'production' : 'sandbox',
+                        brokerId,
+                    });
+            }
         } catch (error) {
             logger(0, error, res);
         }
@@ -215,4 +325,6 @@ module.exports = {
     tokenRequest,
     getSelectedToken,
     addAccountIdToToken,
+    checkFinamServer,
+    changePassword,
 };

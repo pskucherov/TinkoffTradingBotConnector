@@ -1,16 +1,293 @@
 const path = require('path');
 const { app } = require('../server');
-const { logger } = require('../logger');
+const { logger, sdkLogger } = require('../logger');
 const fs = require('fs');
 
-const { getCandles, getCachedOrderBook, getRobotStateCachePath, getFigiData, getTradingSchedules } = require('../getHeadsInstruments');
+const { getCandles, getCachedOrderBook, getRobotStateCachePath, getFigiData, getTradingSchedules, getFinamCandles } = require('../getHeadsInstruments');
 const { getFromMorning, getToEvening } = require('../utils');
 const { getSelectedToken } = require('../tokens');
 
 let robotStarted;
 let bots;
 
+const getCandlesToBacktest = async (sdkObj, figi, interval, date, step) => {
+    const { brokerId } = getSelectedToken(1);
+    const funcGetCandles = brokerId === 'FINAM' ? getFinamCandles : getCandles;
+
+    date = Number(date);
+    const from = new Date(date);
+    const to = new Date(date);
+
+    from.setHours(5, 0, 0, 0);
+    to.setHours(20, 59, 59, 999);
+
+    const { candles } = await funcGetCandles(sdkObj, figi, interval, from.getTime(), to.getTime());
+
+    if (!candles || !candles.length) {
+        return;
+    }
+
+    return candles.slice(0, step);
+};
+
 try {
+    const cacheState = (figi, time, lastPrice, orderBook) => {
+        try {
+            const fileName = getRobotStateCachePath(figi, time);
+
+            // Здесь логично поставить или,
+            // но lastPrice приходит и в выходные.
+            // С учётом большого объёма данных думаю можно пренебречь.
+            if (lastPrice && orderBook) {
+                fs.writeFileSync(fileName, JSON.stringify([lastPrice, orderBook]) + '\r\n', { flag: 'a' });
+            }
+        } catch (e) { logger(0, e) }
+    };
+
+    const finamRobotConnector = (sdkObj, botLib) => { // eslint-disable-line
+        if (!sdkObj.sdk || !botLib) {
+            return;
+        }
+
+        const { sdk } = sdkObj;
+
+        bots = botLib.bots;
+
+        app.get('/robots/tconnectordebug', async (req, res) => {
+            const answer = { ...sdk };
+
+            delete answer.securities;
+            delete answer.subscribes;
+            delete answer.shares;
+            delete answer.futures;
+
+            return res.json(answer);
+        });
+
+        const getOrders = async (accountId, figi) => {
+            if (!figi) {
+                return [];
+            }
+
+            try {
+                const o = await sdk.getOrders(figi);
+
+                return { orders: o || [] };
+            } catch (e) { logger(1, e) }
+        };
+
+        const cancelOrder = async (accountId, orderId) => {
+            try {
+                return await sdk.cancelOrder(orderId);
+            } catch (e) { logger(1, e) }
+        };
+
+        const getFinamPositions = async () => {
+            try {
+                // {"totalAmountShares":{"currency":"rub","units":2424,"nano":800000000},"totalAmountBonds":{"currency":"rub","units":0,"nano":0},"totalAmountEtf":{"currency":"rub","units":0,"nano":0},"totalAmountCurrencies":{"currency":"rub","units":9533,"nano":350000000},"totalAmountFutures":{"currency":"rub","units":0,"nano":0},"expectedYield":{"units":0,"nano":-340000000},"positions":[{"figi":"BBG004730N88","instrumentType":"share","quantity":{"units":20,"nano":0},"averagePositionPrice":{"currency":"rub","units":123,"nano":270000000},"expectedYield":{"units":-40,"nano":-600000000},"currentNkd":{"currency":"rub","units":0,"nano":0},"currentPrice":{"currency":"rub","units":121,"nano":240000000},"averagePositionPriceFifo":{"currency":"rub","units":123,"nano":270000000},"quantityLots":{"units":2,"nano":0}}]}
+                const p = await sdk.getPortfolioAsync();
+
+                return { positions: p && p.security || [] };
+            } catch (e) { logger(1, e) }
+        };
+
+        const getQuotationsAndOrderbook = figi => {
+            try {
+                // {"totalAmountShares":{"currency":"rub","units":2424,"nano":800000000},"totalAmountBonds":{"currency":"rub","units":0,"nano":0},"totalAmountEtf":{"currency":"rub","units":0,"nano":0},"totalAmountCurrencies":{"currency":"rub","units":9533,"nano":350000000},"totalAmountFutures":{"currency":"rub","units":0,"nano":0},"expectedYield":{"units":0,"nano":-340000000},"positions":[{"figi":"BBG004730N88","instrumentType":"share","quantity":{"units":20,"nano":0},"averagePositionPrice":{"currency":"rub","units":123,"nano":270000000},"expectedYield":{"units":-40,"nano":-600000000},"currentNkd":{"currency":"rub","units":0,"nano":0},"currentPrice":{"currency":"rub","units":121,"nano":240000000},"averagePositionPriceFifo":{"currency":"rub","units":123,"nano":270000000},"quantityLots":{"units":2,"nano":0}}]}
+                const q = sdk.getQuotations(figi);
+
+                return q || {};
+            } catch (e) { logger(1, e) }
+        };
+
+        const postOrder = async (accountId, figi, quantity, price, direction, orderType, orderId) => { // eslint-disable-line max-params
+            try {
+                const order = await sdk.newOrder(figi, price, quantity,
+                    direction === 1 ? 'B' : 'S', robotStarted.robot.name,
+                );
+
+                if (typeof order === 'string') {
+                    logger(1, order);
+
+                    return false;
+                }
+
+                return order;
+            } catch (e) { logger(1, e) }
+        };
+
+        app.get('/robots/cancelorder', async (req, res) => {
+            try {
+                const {
+                    transactionid,
+                } = req.query;
+
+                await cancelOrder(0, transactionid);
+
+                return res.status(404).end();
+            } catch (err) {
+                logger(0, err);
+            }
+        });
+
+        app.get('/robots/cancelposition', async (req, res) => {
+            try {
+                const {
+                    figi, direction, lots,
+                } = req.query;
+
+                // Приходит direction текущей позиции. 1 - B, 2 - S.
+                // Для закрытия позиции выставляем противоположную.
+                const order = await sdk.newOrder(figi, 0, Number(lots),
+                    Number(direction) === 1 ? 'S' : 'B', robotStarted.robot.name,
+                );
+
+                if (typeof order === 'string') {
+                    logger(1, order);
+
+                    return res.status(404).end();
+                }
+
+                return res.json(order);
+            } catch (err) {
+                logger(0, err);
+            }
+        });
+
+        app.get('/robots/start/:figi', async (req, res) => {
+            try {
+                if (robotStarted) {
+                    return res.json(robotStarted);
+                }
+
+                const name = req.query.name;
+                const backtest = Number(req.query.backtest);
+
+                const robot = new bots[name](
+                    req.query.accountId,
+                    Number(req.query.adviser),
+                    Number(req.query.backtest),
+                    {
+                        subscribes: {
+                            // lastPrice: lastPriceSubscribe(req.params.figi),
+                            // orderbook: orderBookSubscribe(req.params.figi),
+                            // orders: ordersStream.tradesStream,
+                        },
+
+                        // getTradingSchedules: getTradingSchedules.bind(this, sdkObj.sdk),
+                        cacheState,
+
+                        postOrder,
+
+                        getOrders,
+
+                        // getOrderState,
+                        cancelOrder,
+                        getPortfolio: getFinamPositions,
+                        getQuotationsAndOrderbook,
+
+                        // getPositions,
+                        // getOperations,
+                    },
+                    {
+                        token: getSelectedToken(),
+                        enums: {
+                            // CandleInterval,
+                            // InstrumentStatus,
+                            // InstrumentIdType,
+                            // SubscriptionInterval,
+                            OrderDirection: {
+                                ORDER_DIRECTION_BUY: 1,
+                                ORDER_DIRECTION_SELL: 2,
+                            },
+
+                            OrderType: {
+                                ORDER_TYPE_LIMIT: 1,
+                                ORDER_TYPE_MARKET: 2,
+                            },
+                        },
+                        isSandbox: false,
+                        brokerId: 'FINAM',
+                    },
+                );
+
+                if (bots[name]) {
+                    robotStarted = {
+                        robot,
+                        name,
+                    };
+
+                    robot.start();
+
+                    if (backtest) {
+                        robot.setBacktestState(0, req.query.interval, req.params.figi, req.query.date, {
+                            tickerInfo: await sdk.getInfoByFigi(req.params.figi),
+                        });
+                    } else {
+                        robot.setCurrentState(undefined, undefined, undefined, undefined, {
+                            tickerInfo: await sdk.getInfoByFigi(req.params.figi),
+                        });
+                    }
+                }
+
+                return res.json({
+                    ...robotStarted,
+                });
+            } catch (err) {
+                logger(0, err);
+            }
+        });
+
+        app.get('/robots/backtest/step/:step', async (req, res) => {
+            try {
+                const step = Number(req.params.step);
+
+                if (!robotStarted || !step || step < 1) {
+                    return res.status(404).end();
+                }
+
+                const {
+                    robot,
+                } = robotStarted;
+
+                if (!robot) {
+                    return res.status(404).end();
+                }
+
+                const { figi, interval, date } = robot.getBacktestState();
+
+                robot.setBacktestState(step);
+
+                const candles = await getCandlesToBacktest(sdkObj, figi, interval, date, step);
+
+                // TODO: брать по времени свечи, а не шагу
+                const orderbook = getCachedOrderBook(figi, date);
+
+                if (!candles && !orderbook) {
+                    return res.status(404).end();
+                }
+
+                const lastPrice = candles && candles[candles.length - 1] && candles[candles.length - 1].close;
+
+                robotStarted.robot.setCurrentState(
+                    sdk.priceToObject(lastPrice),
+                    candles,
+                    undefined,
+                    orderbook,
+                );
+
+                //setTimeout(() => {
+                return res.json(await robotStarted.robot.getPositions());
+
+                //}, (robotStarted.robot.getParams['timer'] + 50));
+
+                // robotStarted.robot.
+            } catch (err) {
+                logger(0, err);
+            }
+        });
+    };
+
     const robotConnector = (sdkObj, botLib, isSandbox) => { // eslint-disable-line
         if (!sdkObj.sdk || !botLib) {
             return;
@@ -66,23 +343,6 @@ try {
             } catch (e) { logger(1, e) }
         };
 
-        const getCandlesToBacktest = async (figi, interval, date, step) => {
-            date = Number(date);
-            const from = new Date(date);
-            const to = new Date(date);
-
-            from.setHours(5, 0, 0, 0);
-            to.setHours(20, 59, 59, 999);
-
-            const { candles } = await getCandles(sdkObj, figi, interval, from.getTime(), to.getTime());
-
-            if (!candles || !candles.length) {
-                return;
-            }
-
-            return candles.slice(0, step);
-        };
-
         const postOrder = async (accountId, figi, quantity, price, direction, orderType, orderId) => { // eslint-disable-line max-params
             try {
                 const command = isSandbox ? postSandboxOrder : orders.postOrder;
@@ -129,19 +389,6 @@ try {
                     orderId,
                 });
             } catch (e) { logger(1, e) }
-        };
-
-        const cacheState = (figi, time, lastPrice, orderBook) => {
-            try {
-                const fileName = getRobotStateCachePath(figi, time);
-
-                // Здесь логично поставить или,
-                // но lastPrice приходит и в выходные.
-                // С учётом большого объёма данных думаю можно пренебречь.
-                if (lastPrice && orderBook) {
-                    fs.writeFileSync(fileName, JSON.stringify([lastPrice, orderBook]) + '\r\n', { flag: 'a' });
-                }
-            } catch (e) { logger(0, e) }
         };
 
         const getPortfolio = async accountId => {
@@ -297,7 +544,7 @@ try {
 
                 robot.setBacktestState(step);
 
-                const candles = await getCandlesToBacktest(figi, interval, date, step);
+                const candles = await getCandlesToBacktest(sdkObj, figi, interval, date, step);
 
                 // TODO: брать по времени свечи, а не шагу
                 const orderbook = getCachedOrderBook(figi, date);
@@ -345,6 +592,7 @@ try {
                     state),
                 positions: await robotStarted.robot.getPositions(),
                 orders: await robotStarted.robot.getOrders(),
+                tickerInfo: robotStarted.robot.getTickerInfo(),
             });
         }
 
@@ -438,6 +686,7 @@ try {
 
     module.exports = {
         robotConnector,
+        finamRobotConnector,
     };
 } catch (error) {
     logger(0, error);
