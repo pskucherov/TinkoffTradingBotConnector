@@ -4,13 +4,15 @@ const config = require(configFile);
 const { logger } = require('./logger');
 const { app } = require('./server');
 const fs = require('fs');
-const { utils } = require('tconnector/utils');
+
+// const { utils } = require('tconnector/utils');
+const utils = undefined;
 
 app.get('/logs/:type', async (req, res) => {
     try {
         const fileName = req.params.type === 'server' ? config.files.logsServer : config.files.logsApi;
 
-        if (['dsp', 'ts', 'xdf'].includes(req.params.type)) {
+        if (utils && ['dsp', 'ts', 'xdf'].includes(req.params.type)) {
             const data = utils.getFileContent(req.params.type);
 
             return res.send(data);

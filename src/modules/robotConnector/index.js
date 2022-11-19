@@ -6,6 +6,7 @@ const fs = require('fs');
 const { getCandles, getCachedOrderBook, getRobotStateCachePath, getFigiData, getTradingSchedules, getFinamCandles } = require('../getHeadsInstruments');
 const { getFromMorning, getToEvening } = require('../utils');
 const { getSelectedToken } = require('../tokens');
+const { getPortfolio, getPositions } = require('./tinkoffApi');
 
 let robotStarted;
 let bots;
@@ -18,8 +19,8 @@ const getCandlesToBacktest = async (sdkObj, figi, interval, date, step) => {
     const from = new Date(date);
     const to = new Date(date);
 
-    from.setHours(5, 0, 0, 0);
-    to.setHours(20, 59, 59, 999);
+    from.setHours(0, 0, 0, 0);
+    to.setHours(23, 59, 59, 999);
 
     const { candles } = await funcGetCandles(sdkObj, figi, interval, from.getTime(), to.getTime());
 
@@ -391,24 +392,6 @@ try {
             } catch (e) { logger(1, e) }
         };
 
-        const getPortfolio = async accountId => {
-            try {
-                const command = isSandbox ? getSandboxPortfolio : operations.getPortfolio;
-
-                // {"totalAmountShares":{"currency":"rub","units":2424,"nano":800000000},"totalAmountBonds":{"currency":"rub","units":0,"nano":0},"totalAmountEtf":{"currency":"rub","units":0,"nano":0},"totalAmountCurrencies":{"currency":"rub","units":9533,"nano":350000000},"totalAmountFutures":{"currency":"rub","units":0,"nano":0},"expectedYield":{"units":0,"nano":-340000000},"positions":[{"figi":"BBG004730N88","instrumentType":"share","quantity":{"units":20,"nano":0},"averagePositionPrice":{"currency":"rub","units":123,"nano":270000000},"expectedYield":{"units":-40,"nano":-600000000},"currentNkd":{"currency":"rub","units":0,"nano":0},"currentPrice":{"currency":"rub","units":121,"nano":240000000},"averagePositionPriceFifo":{"currency":"rub","units":123,"nano":270000000},"quantityLots":{"units":2,"nano":0}}]}
-                return await command({ accountId });
-            } catch (e) { logger(1, e) }
-        };
-
-        const getPositions = async accountId => {
-            try {
-                const command = isSandbox ? getSandboxPositions : operations.getPositions;
-
-                // {"money":[{"currency":"rub","units":9533,"nano":350000000}],"blocked":[],"securities":[{"figi":"BBG004730N88","blocked":0,"balance":20}],"limitsLoadingInProgress":false,"futures":[]}
-                return await command({ accountId });
-            } catch (e) { logger(1, e) }
-        };
-
         const orderBookSubscribe = figi => {
             try {
                 function getCreateSubscriptionOrderBookRequest() {
@@ -458,41 +441,47 @@ try {
                 const name = req.query.name;
                 const backtest = Number(req.query.backtest);
 
-                const robot = new bots[name](
-                    req.query.accountId,
-                    Number(req.query.adviser),
-                    Number(req.query.backtest),
-                    {
-                        subscribes: {
-                            lastPrice: lastPriceSubscribe(req.params.figi),
-                            orderbook: orderBookSubscribe(req.params.figi),
-                            orders: ordersStream.tradesStream,
-                        },
-                        getTradingSchedules: getTradingSchedules.bind(this, sdkObj.sdk),
-                        cacheState,
-                        postOrder,
-                        getOrders,
-                        getOrderState,
-                        cancelOrder,
-                        getPortfolio,
-                        getPositions,
-                        getOperations,
-                    },
-                    {
-                        token: getSelectedToken(),
-                        enums: {
-                            CandleInterval,
-                            InstrumentStatus,
-                            InstrumentIdType,
-                            SubscriptionInterval,
-                            OrderDirection,
-                            OrderType,
-                        },
-                        isSandbox,
-                    },
-                );
-
                 if (bots[name]) {
+                    const type = bots[name].type;
+
+                    const robot = new bots[name](
+                        req.query.accountId,
+                        Number(req.query.adviser),
+                        Number(req.query.backtest),
+                        {
+                            subscribes: type === 'portfolio' ? {} : {
+                                lastPrice: lastPriceSubscribe(req.params.figi),
+                                orderbook: orderBookSubscribe(req.params.figi),
+                                orders: ordersStream.tradesStream,
+                            },
+                            getTradingSchedules: getTradingSchedules.bind(this, sdkObj.sdk),
+                            cacheState,
+                            postOrder,
+                            getOrders,
+                            getOrderState,
+                            cancelOrder,
+                            getPortfolio: async (accountId, getSandboxPortfolio, isSandbox) => {
+                                return await getPortfolio(accountId, getSandboxPortfolio, isSandbox, operations);
+                            },
+                            getPositions: async (accountId, getSandboxPositions, isSandbox) => {
+                                return await getPositions(accountId, getSandboxPositions, isSandbox, operations);
+                            },
+                            getOperations,
+                        },
+                        {
+                            token: getSelectedToken(),
+                            enums: {
+                                CandleInterval,
+                                InstrumentStatus,
+                                InstrumentIdType,
+                                SubscriptionInterval,
+                                OrderDirection,
+                                OrderType,
+                            },
+                            isSandbox,
+                        },
+                    );
+
                     robotStarted = {
                         // figi: req.params.figi,
                         // date: req.query.date,
@@ -501,17 +490,28 @@ try {
 
                         // backtest,
                         name,
+                        type,
                     };
 
                     robot.start();
 
+                    let tickerInfo;
+                    const splittedFigi = req.params.figi.split(',');
+
+                    if (splittedFigi.length === 1) {
+                        tickerInfo = getFigiData(req.params.figi);
+                    } else {
+                        tickerInfo = splittedFigi.map(f => getFigiData(f)).filter(f => Boolean(f));
+                    }
+
                     if (backtest) {
-                        robot.setBacktestState(0, req.query.interval, req.params.figi, req.query.date, {
-                            tickerInfo: getFigiData(req.params.figi),
-                        });
+                        robot.setBacktestState(0, req.query.interval,
+                            splittedFigi.length === 1 ? req.params.figi : splittedFigi, req.query.date, {
+                                tickerInfo,
+                            });
                     } else {
                         robot.setCurrentState(undefined, undefined, undefined, undefined, {
-                            tickerInfo: getFigiData(req.params.figi),
+                            tickerInfo,
                         });
                     }
                 }
@@ -576,7 +576,12 @@ try {
 
     app.get('/robots/getnames', async (req, res) => {
         try {
-            return res.json(Object.keys(bots));
+            return res.json(Object.keys(bots).map(k => {
+                return {
+                    name: k,
+                    type: bots[k].type,
+                };
+            }));
         } catch (err) {
             logger(0, err);
         }
@@ -593,6 +598,7 @@ try {
                 positions: await robotStarted.robot.getPositions(),
                 orders: await robotStarted.robot.getOrders(),
                 tickerInfo: robotStarted.robot.getTickerInfo(),
+                type: robotStarted.type,
             });
         }
 
@@ -645,6 +651,7 @@ try {
         const {
             isAdviser, takeProfit, stopLoss, lotsSize,
             su, sn, ru, rn, accountId, figi,
+            volume,
         } = req.query;
 
         if (robotStarted && robotStarted.robot && robotStarted.name === name) {
@@ -656,7 +663,7 @@ try {
             return res.json({ ok: 1 });
         } else if (name && bots[name]) {
             bots[name].setSettings(name, {
-                isAdviser: Number(isAdviser), takeProfit, stopLoss, lotsSize,
+                isAdviser: Number(isAdviser), takeProfit, stopLoss, volume, lotsSize,
                 su, sn, ru, rn,
             }, accountId, figi);
 

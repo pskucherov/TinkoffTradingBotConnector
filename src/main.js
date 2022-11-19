@@ -6,8 +6,12 @@ const config = require(configFile);
 const { logger, sdkLogger } = require('./modules/logger');
 const hmr = require('node-hmr');
 const { robotConnector, finamRobotConnector } = require('./modules/robotConnector');
-const { TConnector } = require('tconnector/tconnector');
+
+const TConnector = undefined;
+
+// const { TConnector } = require('tconnector/tconnector');
 const { accountsRequest } = require('./modules/accounts');
+const { portfolioConnector } = require('./modules/robotConnector/bulkportfolio');
 
 try {
     const tinkofftradingbot = (bots = {}) => { // eslint-disable-line sonarjs/cognitive-complexity
@@ -46,7 +50,8 @@ try {
                             sdk.sdk = createSdk(token, appName, sdkLogger);
                             prepareServer(sdk);
                             robotConnector(sdk, bots);
-                        } else if (brokerId === 'FINAM' && (oldBroderId !== brokerId || oldToken !== token)) {
+                            portfolioConnector(sdk, bots);
+                        } else if (brokerId === 'FINAM' && typeof TConnector !== 'undefined' && (oldBroderId !== brokerId || oldToken !== token)) {
                             if (sdk.sdk) {
                                 sdk.sdk.disconnect();
                             }
