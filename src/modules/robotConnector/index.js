@@ -213,20 +213,36 @@ try {
                 );
 
                 if (bots[name]) {
+                    const type = bots[name].type;
+
                     robotStarted = {
                         robot,
                         name,
+                        type,
                     };
 
                     robot.start();
 
+                    let tickerInfo;
+                    const splittedFigi = req.params.figi.split(',');
+
+                    if (splittedFigi.length === 1) {
+                        tickerInfo = await sdk.getInfoByFigi(req.params.figi);
+                    } else {
+                        tickerInfo = splittedFigi.map(async f => await sdk.getInfoByFigi(f)).filter(f => Boolean(f));
+                    }
+
                     if (backtest) {
                         robot.setBacktestState(0, req.query.interval, req.params.figi, req.query.date, {
-                            tickerInfo: await sdk.getInfoByFigi(req.params.figi),
+                            figi: splittedFigi.length === 1 ? req.params.figi : splittedFigi,
+                            tickerInfo,
+                            type,
                         });
                     } else {
                         robot.setCurrentState(undefined, undefined, undefined, undefined, {
-                            tickerInfo: await sdk.getInfoByFigi(req.params.figi),
+                            figi: splittedFigi.length === 1 ? req.params.figi : splittedFigi,
+                            tickerInfo,
+                            type,
                         });
                     }
                 }
@@ -314,6 +330,7 @@ try {
             OrderType,
 
             ordersStream,
+            operationsStream,
         } = sdkObj.sdk;
 
         const {
@@ -326,13 +343,13 @@ try {
             getSandboxPortfolio,
         } = sdkObj.sdk.sandbox;
 
-        const lastPriceSubscribe = figi => {
+        const lastPriceSubscribe = () => {
             try {
-                function getCreateSubscriptionLastPriceRequest() {
+                function getCreateSubscriptionLastPriceRequest(figi) {
                     return MarketDataRequest.fromJSON({
                         subscribeLastPriceRequest: {
                             subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
-                            instruments: [{ figi }],
+                            instruments: Array.isArray(figi) ? figi.map(f => { return { figi: f } }) : [{ figi }],
                         },
                     });
                 }
@@ -392,13 +409,14 @@ try {
             } catch (e) { logger(1, e) }
         };
 
-        const orderBookSubscribe = figi => {
+        const orderBookSubscribe = () => {
             try {
-                function getCreateSubscriptionOrderBookRequest() {
+                function getCreateSubscriptionOrderBookRequest(figi) {
                     return MarketDataRequest.fromJSON({
                         subscribeOrderBookRequest: {
                             subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
-                            instruments: [{ figi, depth: 50 }],
+                            instruments: Array.isArray(figi) ?
+                                figi.map(f => { return { figi: f, depth: 50 } }) : [{ figi, depth: 50 }],
                         },
                     });
                 }
@@ -449,10 +467,11 @@ try {
                         Number(req.query.adviser),
                         Number(req.query.backtest),
                         {
-                            subscribes: type === 'portfolio' ? {} : {
-                                lastPrice: lastPriceSubscribe(req.params.figi),
-                                orderbook: orderBookSubscribe(req.params.figi),
+                            subscribes: {
+                                lastPrice: lastPriceSubscribe,
+                                orderbook: orderBookSubscribe,
                                 orders: ordersStream.tradesStream,
+                                positions: operationsStream.positionsStream,
                             },
                             getTradingSchedules: getTradingSchedules.bind(this, sdkObj.sdk),
                             cacheState,
@@ -507,11 +526,15 @@ try {
                     if (backtest) {
                         robot.setBacktestState(0, req.query.interval,
                             splittedFigi.length === 1 ? req.params.figi : splittedFigi, req.query.date, {
+                                figi: splittedFigi.length === 1 ? req.params.figi : splittedFigi,
                                 tickerInfo,
+                                type,
                             });
                     } else {
                         robot.setCurrentState(undefined, undefined, undefined, undefined, {
+                            figi: splittedFigi.length === 1 ? req.params.figi : splittedFigi,
                             tickerInfo,
+                            type,
                         });
                     }
                 }
@@ -519,6 +542,24 @@ try {
                 return res.json({
                     ...robotStarted,
                 });
+            } catch (err) {
+                logger(0, err);
+            }
+        });
+
+        app.get('/robots/cancelorder', async (req, res) => {
+            try {
+                const {
+                    transactionid,
+                } = req.query;
+
+                if (robotStarted && robotStarted.robot) {
+                    robotStarted.robot.cancelOrder(transactionid);
+
+                    return res.json({});
+                }
+
+                return res.status(404).end();
             } catch (err) {
                 logger(0, err);
             }

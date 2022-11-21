@@ -6,9 +6,15 @@ const { getPortfolio } = require('./tinkoffApi');
 const getPortfolioWithData = async portfolio => {
     const figi = {};
 
-    portfolio.positions.forEach(async p => {
-        figi[p.figi] = await getFigiData(p.figi);
-    });
+    try {
+        if (portfolio && portfolio.positions && Array.isArray(portfolio.positions)) {
+            portfolio.positions.forEach(async p => {
+                figi[p.figi] = await getFigiData(p.figi);
+            });
+        }
+    } catch (e) {
+        console.log(e); // eslint-disable-line no-console
+    }
 
     return {
         portfolio,
@@ -53,7 +59,7 @@ const portfolioConnector = async (sdkObj, botLib, isSandbox) => { // eslint-disa
             const interval = setInterval(async () => {
                 portfolio = await getPortfolio(accountId, getSandboxPortfolio, isSandbox, operations);
                 socket.emit('portfolio:data', await getPortfolioWithData(portfolio));
-            }, 1000);
+            }, 10000);
 
             socket.on('disconnect', reason => {
                 clearInterval(interval);
