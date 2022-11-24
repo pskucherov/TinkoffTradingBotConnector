@@ -695,18 +695,17 @@ try {
             volume,
         } = req.query;
 
+        const newSettings = {
+            isAdviser: Number(isAdviser), takeProfit, stopLoss, volume, lotsSize,
+            su, sn, ru, rn,
+        };
+
         if (robotStarted && robotStarted.robot && robotStarted.name === name) {
-            robotStarted.robot.setCurrentSettings({
-                isAdviser: Number(isAdviser), takeProfit, stopLoss, lotsSize,
-                su, sn, ru, rn,
-            });
+            robotStarted.robot.setCurrentSettings(newSettings);
 
             return res.json({ ok: 1 });
         } else if (name && bots[name]) {
-            bots[name].setSettings(name, {
-                isAdviser: Number(isAdviser), takeProfit, stopLoss, volume, lotsSize,
-                su, sn, ru, rn,
-            }, accountId, figi);
+            bots[name].setSettings(name, newSettings, accountId, figi);
 
             return res.json({ ok: 1 });
         }
