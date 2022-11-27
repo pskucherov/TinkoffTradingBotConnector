@@ -13,11 +13,12 @@ const TConnector = undefined;
 const { accountsRequest } = require('./modules/accounts');
 const { portfolioConnector } = require('./modules/robotConnector/bulkportfolio');
 
+// const { pinRequest } = require('./modules/pin');
+
 try {
     const tinkofftradingbot = (bots = {}) => { // eslint-disable-line sonarjs/cognitive-complexity
         const { createSdk } = require('tinkoff-sdk-grpc-js');
 
-        const { app } = require('./modules/server');
         const { tokenRequest, getSelectedToken, checkFinamServer } = require('./modules/tokens');
         const { prepareServer, instrumentsRequest } = require('./modules/getHeadsInstruments/serverRequests');
 
@@ -34,8 +35,11 @@ try {
         // т.к. hmr его не подтягивает.
         // TODO: сохранять токен из запроса без вотчинга файла.
         chokidar
-            .watch([config.files.tokens])
+            .watch([config.files.tokens, config.files.pin])
             .on('all', () => {
+                require('./modules/users');
+                require('./modules/server');
+
                 const oldBroderId = brokerId;
                 const oldToken = token;
 
@@ -110,6 +114,8 @@ try {
 
         // CRUD токенов.
         tokenRequest(createSdk);
+
+        // pinRequest();
 
         // CRUD инструментов.
         instrumentsRequest(sdk);
