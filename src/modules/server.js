@@ -4,7 +4,6 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const auth = require('./users/auth');
 const app = express();
-
 const http = require('http').Server(app);
 
 app.use(cors({
@@ -20,7 +19,10 @@ app.use(auth);
 
 const io = require('socket.io')(http, {
     path: '/api/socket',
-    cors: '*',
+    cors: {
+        origin: (o, next) => { next(null, o) },
+        credentials: true,
+    }
 });
 
 const ip = '0.0.0.0';

@@ -39,6 +39,8 @@ const getPortfolioWithData = async (portfolio, botLib, accountId, selectedBot) =
     };
 };
 
+const auth = require('../users/socketAuth');
+
 const portfolioConnector = async (sdkObj, botLib, isSandbox) => { // eslint-disable-line
     if (!sdkObj.sdk || !botLib) {
         return;
@@ -48,7 +50,7 @@ const portfolioConnector = async (sdkObj, botLib, isSandbox) => { // eslint-disa
         getSandboxPortfolio,
     } = sdkObj.sdk.sandbox;
 
-    io.of('/portfolio').on('connection', async socket => {
+    io.of('/portfolio').use(auth).on('connection', async socket => {
         try {
             let selectedRobot = false;
 
