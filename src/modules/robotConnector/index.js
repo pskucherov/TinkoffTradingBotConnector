@@ -221,6 +221,8 @@ try {
                         type,
                     };
 
+                    botLib.robotsStarted.push(robotStarted);
+
                     robot.start();
 
                     let tickerInfo;
@@ -512,6 +514,8 @@ try {
                         type,
                     };
 
+                    botLib.robotsStarted.push(robotStarted);
+
                     robot.start();
 
                     let tickerInfo;
@@ -524,14 +528,14 @@ try {
                     }
 
                     if (backtest) {
-                        robot.setBacktestState(0, req.query.interval,
+                        await robot.setBacktestState(0, req.query.interval,
                             splittedFigi.length === 1 ? req.params.figi : splittedFigi, req.query.date, {
                                 figi: splittedFigi.length === 1 ? req.params.figi : splittedFigi,
                                 tickerInfo,
                                 type,
                             });
                     } else {
-                        robot.setCurrentState(undefined, undefined, undefined, undefined, {
+                        await robot.setCurrentState(undefined, undefined, undefined, undefined, {
                             figi: splittedFigi.length === 1 ? req.params.figi : splittedFigi,
                             tickerInfo,
                             type,

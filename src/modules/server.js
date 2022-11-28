@@ -22,7 +22,7 @@ const io = require('socket.io')(http, {
     cors: {
         origin: (o, next) => { next(null, o) },
         credentials: true,
-    }
+    },
 });
 
 const ip = '0.0.0.0';

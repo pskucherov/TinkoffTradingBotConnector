@@ -12,7 +12,7 @@ const getPortfolioWithData = async (portfolio, botLib, accountId, selectedBot) =
             if (accountId && botLib?.bots && selectedBot) {
                 const settings = botLib.bots[selectedBot].getSettings(selectedBot, accountId, 'portfolio');
 
-                calcPositions = botLib.bots[selectedBot].calcPortfolio(portfolio, settings);
+                calcPositions = botLib.bots[selectedBot].calcPortfolio(portfolio.positions, settings);
                 calcPositions = {
                     ...calcPositions,
                     ...settings,

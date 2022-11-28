@@ -1,9 +1,8 @@
 const { verify } = require('jsonwebtoken');
 const { parse } = require('cookie');
 
-module.exports = function (req, next) {
+module.exports = function(req, next) {
     try {
-
         const { token } = parse(req.handshake?.headers?.cookie);
 
         if (!token) {
