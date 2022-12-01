@@ -32,7 +32,7 @@
     "opexviewer": "^0.1.2",
     "reactstrap": "^9.0.2",
     "socket.io": "^4.5.4",
-    "tinkoff-sdk-grpc-js": "^0.1.10"
+    "tinkoff-sdk-grpc-js": "^0.1.18"
   },
   "devDependencies": {
     "eslint": "^8.14.0",
