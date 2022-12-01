@@ -1,10 +1,14 @@
 const { getFigiData } = require('../getHeadsInstruments');
 const { io } = require('../server');
 const { getSelectedToken } = require('../tokens');
-const { getPortfolio } = require('./tinkoffApi');
+const { getPortfolio, getOrders } = require('./tinkoffApi');
 
-const getPortfolioWithData = async (portfolio, botLib, accountId, selectedBot) => {
+const getPortfolioWithData = async (pos, botLib, accountId, selectedBot) => {
     const figi = {};
+    const {
+        portfolio,
+        orders,
+    } = pos;
     let calcPositions;
 
     try {
@@ -36,6 +40,7 @@ const getPortfolioWithData = async (portfolio, botLib, accountId, selectedBot) =
         portfolio,
         figi,
         calcPositions,
+        orders: orders?.orders,
     };
 };
 
@@ -55,6 +60,7 @@ const portfolioConnector = async (sdkObj, botLib, isSandbox) => { // eslint-disa
             let selectedRobot = false;
 
             const {
+                orders,
                 operations,
             } = sdkObj.sdk;
 
@@ -63,7 +69,10 @@ const portfolioConnector = async (sdkObj, botLib, isSandbox) => { // eslint-disa
             const sendData = async () => {
                 const portfolio = await getPortfolio(accountId, getSandboxPortfolio, isSandbox, operations);
 
-                socket.emit('portfolio:data', await getPortfolioWithData(portfolio, botLib, accountId, selectedRobot));
+                socket.emit('portfolio:data', await getPortfolioWithData({
+                    orders: await getOrders(accountId, getSandboxPortfolio, isSandbox, orders),
+                    portfolio,
+                }, botLib, accountId, selectedRobot));
             };
 
             sendData();

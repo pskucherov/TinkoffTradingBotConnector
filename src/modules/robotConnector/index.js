@@ -6,9 +6,12 @@ const fs = require('fs');
 const { getCandles, getCachedOrderBook, getRobotStateCachePath, getFigiData, getTradingSchedules, getFinamCandles } = require('../getHeadsInstruments');
 const { getFromMorning, getToEvening } = require('../utils');
 const { getSelectedToken } = require('../tokens');
-const { getPortfolio, getPositions } = require('./tinkoffApi');
+const { getPortfolio, getPositions, getOrders, startRobot } = require('./tinkoffApi');
+const { saveStartedRobot, delStartedRobot } = require('./state');
+const { cacheState } = require('./utils');
 
 let robotStarted;
+let allRobotsInProgress;
 let bots;
 
 const getCandlesToBacktest = async (sdkObj, figi, interval, date, step) => {
@@ -32,19 +35,6 @@ const getCandlesToBacktest = async (sdkObj, figi, interval, date, step) => {
 };
 
 try {
-    const cacheState = (figi, time, lastPrice, orderBook) => {
-        try {
-            const fileName = getRobotStateCachePath(figi, time);
-
-            // Здесь логично поставить или,
-            // но lastPrice приходит и в выходные.
-            // С учётом большого объёма данных думаю можно пренебречь.
-            if (lastPrice && orderBook) {
-                fs.writeFileSync(fileName, JSON.stringify([lastPrice, orderBook]) + '\r\n', { flag: 'a' });
-            }
-        } catch (e) { logger(0, e) }
-    };
-
     const finamRobotConnector = (sdkObj, botLib) => { // eslint-disable-line
         if (!sdkObj.sdk || !botLib) {
             return;
@@ -53,6 +43,8 @@ try {
         const { sdk } = sdkObj;
 
         bots = botLib.bots;
+
+        // robotStarted = botLib.robotsStarted; // TODO: выбрать нужный (?)
 
         app.get('/robots/tconnectordebug', async (req, res) => {
             const answer = { ...sdk };
@@ -163,6 +155,7 @@ try {
 
                 const name = req.query.name;
                 const backtest = Number(req.query.backtest);
+                const { figi } = req.params;
 
                 const robot = new bots[name](
                     req.query.accountId,
@@ -170,8 +163,8 @@ try {
                     Number(req.query.backtest),
                     {
                         subscribes: {
-                            // lastPrice: lastPriceSubscribe(req.params.figi),
-                            // orderbook: orderBookSubscribe(req.params.figi),
+                            // lastPrice: lastPriceSubscribe(figi),
+                            // orderbook: orderBookSubscribe(figi),
                             // orders: ordersStream.tradesStream,
                         },
 
@@ -225,24 +218,26 @@ try {
 
                     robot.start();
 
+                    // saveStartedRobot(req.query.accountId, name);
+
                     let tickerInfo;
-                    const splittedFigi = req.params.figi.split(',');
+                    const splittedFigi = figi.split(',');
 
                     if (splittedFigi.length === 1) {
-                        tickerInfo = await sdk.getInfoByFigi(req.params.figi);
+                        tickerInfo = await sdk.getInfoByFigi(figi);
                     } else {
                         tickerInfo = splittedFigi.map(async f => await sdk.getInfoByFigi(f)).filter(f => Boolean(f));
                     }
 
                     if (backtest) {
-                        robot.setBacktestState(0, req.query.interval, req.params.figi, req.query.date, {
-                            figi: splittedFigi.length === 1 ? req.params.figi : splittedFigi,
+                        robot.setBacktestState(0, req.query.interval, figi, req.query.date, {
+                            figi: splittedFigi.length === 1 ? figi : splittedFigi,
                             tickerInfo,
                             type,
                         });
                     } else {
                         robot.setCurrentState(undefined, undefined, undefined, undefined, {
-                            figi: splittedFigi.length === 1 ? req.params.figi : splittedFigi,
+                            figi: splittedFigi.length === 1 ? figi : splittedFigi,
                             tickerInfo,
                             type,
                         });
@@ -307,251 +302,59 @@ try {
         });
     };
 
+    const getRobot = () => {
+        return robotStarted || allRobotsInProgress && allRobotsInProgress[0];
+    };
+
+    const clearRobot = () => {
+        robotStarted = undefined;
+        allRobotsInProgress && allRobotsInProgress[0] && allRobotsInProgress.pop();
+    };
+
     const robotConnector = (sdkObj, botLib, isSandbox) => { // eslint-disable-line
         if (!sdkObj.sdk || !botLib) {
             return;
         }
 
         bots = botLib.bots;
-
-        const {
-            orders,
-            operations,
-            marketDataStream,
-            SubscriptionAction,
-            MarketDataRequest,
-
-            CandleInterval,
-
-            InstrumentStatus,
-            InstrumentIdType,
-
-            SubscriptionInterval,
-
-            OrderDirection,
-            OrderType,
-
-            ordersStream,
-            operationsStream,
-        } = sdkObj.sdk;
-
-        const {
-            postSandboxOrder,
-            getSandboxOrders,
-            cancelSandboxOrder,
-            getSandboxOrderState,
-            getSandboxPositions,
-            getSandboxOperations,
-            getSandboxPortfolio,
-        } = sdkObj.sdk.sandbox;
-
-        const lastPriceSubscribe = () => {
-            try {
-                function getCreateSubscriptionLastPriceRequest(figi) {
-                    return MarketDataRequest.fromJSON({
-                        subscribeLastPriceRequest: {
-                            subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
-                            instruments: Array.isArray(figi) ? figi.map(f => { return { figi: f } }) : [{ figi }],
-                        },
-                    });
-                }
-
-                return [
-                    marketDataStream.marketDataStream,
-                    getCreateSubscriptionLastPriceRequest,
-                ];
-            } catch (e) { logger(1, e) }
-        };
-
-        const postOrder = async (accountId, figi, quantity, price, direction, orderType, orderId) => { // eslint-disable-line max-params
-            try {
-                const command = isSandbox ? postSandboxOrder : orders.postOrder;
-
-                return await command({
-                    accountId,
-                    figi,
-                    quantity,
-                    price,
-                    direction, // OrderDirection.ORDER_DIRECTION_BUY,
-                    orderType, // OrderType.ORDER_TYPE_LIMIT,
-                    orderId, //: 'abc-fsdfdsfsdf-2',
-                });
-            } catch (e) { logger(1, e) }
-        };
-
-        const getOrders = async accountId => {
-            try {
-                const command = isSandbox ? getSandboxOrders : orders.getOrders;
-
-                return await command({
-                    accountId,
-                });
-            } catch (e) { logger(1, e) }
-        };
-
-        const getOrderState = async (accountId, orderId) => {
-            try {
-                const command = isSandbox ? getSandboxOrderState : orders.getOrderState;
-
-                return await command({
-                    accountId,
-                    orderId,
-                });
-            } catch (e) { logger(1, e) }
-        };
-
-        const cancelOrder = async (accountId, orderId) => {
-            try {
-                const command = isSandbox ? cancelSandboxOrder : orders.cancelOrder;
-
-                return await command({
-                    accountId,
-                    orderId,
-                });
-            } catch (e) { logger(1, e) }
-        };
-
-        const orderBookSubscribe = () => {
-            try {
-                function getCreateSubscriptionOrderBookRequest(figi) {
-                    return MarketDataRequest.fromJSON({
-                        subscribeOrderBookRequest: {
-                            subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
-                            instruments: Array.isArray(figi) ?
-                                figi.map(f => { return { figi: f, depth: 50 } }) : [{ figi, depth: 50 }],
-                        },
-                    });
-                }
-
-                return [
-                    marketDataStream.marketDataStream,
-                    getCreateSubscriptionOrderBookRequest,
-                ];
-            } catch (e) { logger(1, e) }
-        };
-
-        // OPERATION_STATE_EXECUTED (1) TODO: брать из sdk и порефакторить количество параметров
-        const getOperations = async (accountId, figi, to, state = 1, from = new Date()) => { // eslint-disable-line max-params
-            const f = getFromMorning(from);
-            let t;
-
-            if (!to) {
-                t = getToEvening(from);
-            } else {
-                t = getToEvening(to);
-            }
-
-            // {"operations":[{"id":"31271365988","parentOperationId":"","currency":"rub","payment":{"currency":"rub","units":0,"nano":0},"price":{"currency":"rub","units":108,"nano":340000000},"state":2,"quantity":10,"quantityRest":10,"figi":"BBG004730N88","instrumentType":"share","date":"2022-05-11T14:53:06.915Z","type":"Покупка ЦБ","operationType":15,"trades":[]},{"id":"31271326321","parentOperationId":"","currency":"rub","payment":{"currency":"rub","units":0,"nano":0},"price":{"currency":"rub","units":124,"nano":0},"state":2,"quantity":10,"quantityRest":10,"figi":"BBG004730N88","instrumentType":"share","date":"2022-05-11T14:51:01.318Z","type":"Продажа ЦБ","operationType":22,"trades":[]},{"id":"2662384173","parentOperationId":"31271271951","currency":"rub","payment":{"currency":"rub","units":0,"nano":-310000000},"price":{"currency":"rub","units":0,"nano":0},"state":1,"quantity":0,"quantityRest":0,"figi":"BBG004730N88","instrumentType":"share","date":"2022-05-11T14:48:10.777Z","type":"Удержание комиссии за операцию","operationType":19,"trades":[]},{"id":"31271271951","parentOperationId":"","currency":"rub","payment":{"currency":"rub","units":-1234,"nano":-200000000},"price":{"currency":"rub","units":123,"nano":420000000},"state":1,"quantity":10,"quantityRest":0,"figi":"BBG004730N88","instrumentType":"share","date":"2022-05-11T14:48:09.777Z","type":"Покупка ЦБ","operationType":15,"trades":[{"tradeId":"5370694474","dateTime":"2022-05-11T14:48:09.777Z","quantity":10,"price":{"currency":"rub","units":123,"nano":420000000}}]},{"id":"31271197970","parentOperationId":"","currency":"rub","payment":{"currency":"rub","units":0,"nano":0},"price":{"currency":"rub","units":125,"nano":0},"state":2,"quantity":10,"quantityRest":10,"figi":"BBG004730N88","instrumentType":"share","date":"2022-05-11T14:44:19.347Z","type":"Продажа ЦБ","operationType":22,"trades":[]},{"id":"2662346063","parentOperationId":"31271158513","currency":"rub","payment":{"currency":"rub","units":0,"nano":-310000000},"price":{"currency":"rub","units":0,"nano":0},"state":1,"quantity":0,"quantityRest":0,"figi":"BBG004730N88","instrumentType":"share","date":"2022-05-11T14:42:26.763Z","type":"Удержание комиссии за операцию","operationType":19,"trades":[]},{"id":"31271158513","parentOperationId":"","currency":"rub","payment":{"currency":"rub","units":-1231,"nano":-200000000},"price":{"currency":"rub","units":123,"nano":120000000},"state":1,"quantity":10,"quantityRest":0,"figi":"BBG004730N88","instrumentType":"share","date":"2022-05-11T14:42:25.763Z","type":"Покупка ЦБ","operationType":15,"trades":[{"tradeId":"5370680537","dateTime":"2022-05-11T14:42:25.763Z","quantity":10,"price":{"currency":"rub","units":123,"nano":120000000}}]}]}
-            // {"operations":[{"id":"2670843563","parentOperationId":"31294360696","currency":"rub","payment":{"currency":"rub","units":0,"nano":-300000000},"price":{"currency":"rub","units":0,"nano":0},"state":1,"quantity":0,"quantityRest":0,"figi":"BBG004730N88","instrumentType":"share","date":"2022-05-13T11:30:03.663Z","type":"Удержание комиссии за операцию","operationType":19,"trades":[]},{"id":"31294360696","parentOperationId":"","currency":"rub","payment":{"currency":"rub","units":1199,"nano":100000000},"price":{"currency":"rub","units":119,"nano":910000000},"state":1,"quantity":10,"quantityRest":0,"figi":"BBG004730N88","instrumentType":"share","date":"2022-05-13T11:30:02.663Z","type":"Продажа ЦБ","operationType":22,"trades":[{"tradeId":"5393788838","dateTime":"2022-05-13T11:30:02.663Z","quantity":10,"price":{"currency":"rub","units":119,"nano":910000000}}]}]}
-            try {
-                const command = isSandbox ? getSandboxOperations : operations.getOperations;
-
-                return await command({ accountId, figi, from: f, to: t, state });
-            } catch (e) {
-                logger(1, e);
-            }
-        };
+        allRobotsInProgress = botLib.robotsStarted;
 
         app.get('/robots/start/:figi', async (req, res) => {
+            let robotStarted = getRobot();
+
             try {
                 if (robotStarted) {
                     return res.json(robotStarted);
                 }
 
-                const name = req.query.name;
-                const backtest = Number(req.query.backtest);
+                robotStarted = await startRobot(sdkObj, botLib, isSandbox,
+                    req.params.figi, req.query);
 
-                if (bots[name]) {
-                    const type = bots[name].type;
+                return res.json(robotStarted);
+            } catch (err) {
+                logger(0, err);
+            }
+        });
 
-                    const robot = new bots[name](
-                        req.query.accountId,
-                        Number(req.query.adviser),
-                        Number(req.query.backtest),
-                        {
-                            subscribes: {
-                                lastPrice: lastPriceSubscribe,
-                                orderbook: orderBookSubscribe,
-                                orders: ordersStream.tradesStream,
-                                positions: operationsStream.positionsStream,
-                            },
-                            getTradingSchedules: getTradingSchedules.bind(this, sdkObj.sdk),
-                            cacheState,
-                            postOrder,
-                            getOrders,
-                            getOrderState,
-                            cancelOrder,
-                            getPortfolio: async (accountId, getSandboxPortfolio, isSandbox) => {
-                                return await getPortfolio(accountId, getSandboxPortfolio, isSandbox, operations);
-                            },
-                            getPositions: async (accountId, getSandboxPositions, isSandbox) => {
-                                return await getPositions(accountId, getSandboxPositions, isSandbox, operations);
-                            },
-                            getOperations,
-                        },
-                        {
-                            token: getSelectedToken(),
-                            enums: {
-                                CandleInterval,
-                                InstrumentStatus,
-                                InstrumentIdType,
-                                SubscriptionInterval,
-                                OrderDirection,
-                                OrderType,
-                            },
-                            isSandbox,
-                        },
-                    );
+        app.get('/robots/start', async (req, res) => {
+            let robotStarted = getRobot();
 
-                    robotStarted = {
-                        // figi: req.params.figi,
-                        // date: req.query.date,
-                        // interval: req.query.interval,
-                        robot,
-
-                        // backtest,
-                        name,
-                        type,
-                    };
-
-                    botLib.robotsStarted.push(robotStarted);
-
-                    robot.start();
-
-                    let tickerInfo;
-                    const splittedFigi = req.params.figi.split(',');
-
-                    if (splittedFigi.length === 1) {
-                        tickerInfo = getFigiData(req.params.figi);
-                    } else {
-                        tickerInfo = splittedFigi.map(f => getFigiData(f)).filter(f => Boolean(f));
-                    }
-
-                    if (backtest) {
-                        await robot.setBacktestState(0, req.query.interval,
-                            splittedFigi.length === 1 ? req.params.figi : splittedFigi, req.query.date, {
-                                figi: splittedFigi.length === 1 ? req.params.figi : splittedFigi,
-                                tickerInfo,
-                                type,
-                            });
-                    } else {
-                        await robot.setCurrentState(undefined, undefined, undefined, undefined, {
-                            figi: splittedFigi.length === 1 ? req.params.figi : splittedFigi,
-                            tickerInfo,
-                            type,
-                        });
-                    }
+            try {
+                if (robotStarted) {
+                    return res.json(robotStarted);
                 }
 
-                return res.json({
-                    ...robotStarted,
-                });
+                robotStarted = await startRobot(sdkObj, botLib, isSandbox, [], req.query);
+
+                return res.json(robotStarted);
             } catch (err) {
                 logger(0, err);
             }
         });
 
         app.get('/robots/cancelorder', async (req, res) => {
+            const robotStarted = getRobot();
+
             try {
                 const {
                     transactionid,
@@ -570,6 +373,8 @@ try {
         });
 
         app.get('/robots/backtest/step/:step', async (req, res) => {
+            const robotStarted = getRobot();
+
             try {
                 const step = Number(req.params.step);
 
@@ -633,6 +438,8 @@ try {
     });
 
     app.get('/robots/status', async (req, res) => {
+        const robotStarted = getRobot();
+
         if (robotStarted && robotStarted.robot) {
             const state = robotStarted.robot.getCurrentState();
 
@@ -657,8 +464,10 @@ try {
             date,
         } = req.query;
 
+        const { figi } = req.params;
+
         if (name && bots[name]) {
-            const logs = await (bots[name].getLogs(name, accountId, req.params.figi, Number(date)));
+            const logs = await (bots[name].getLogs(name, accountId, figi, Number(date)));
 
             if (logs) {
                 return res.json(logs);
@@ -704,6 +513,12 @@ try {
             su, sn, ru, rn,
         };
 
+        Object.keys(req.query).forEach(name => {
+            if (typeof newSettings[name] === 'undefined') {
+                newSettings[name] = req.query[name];
+            }
+        });
+
         if (robotStarted && robotStarted.robot && robotStarted.name === name) {
             robotStarted.robot.setCurrentSettings(newSettings);
 
@@ -718,16 +533,22 @@ try {
     });
 
     app.get('/robots/stop', async (req, res) => {
-        if (robotStarted && robotStarted.robot) {
+        const robotStarted = getRobot();
+
+        if (await robotStarted?.robot) {
+            delStartedRobot(robotStarted.robot.accountId, robotStarted.robot.name);
             robotStarted.robot.stop();
+            delete robotStarted.robot;
         }
 
-        robotStarted = undefined;
+        clearRobot();
 
         return res.json({});
     });
 
     app.get('/robots/debug', async (req, res) => {
+        const robotStarted = getRobot();
+
         if (robotStarted && robotStarted.robot) {
             return res.json(robotStarted.robot);
         }

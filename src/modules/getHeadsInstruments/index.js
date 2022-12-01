@@ -456,34 +456,38 @@ try {
      * @returns
      */
     const getFigiData = figi => {
-        const { futures } = getFuturesFromFile();
+        try {
+            const { futures } = getFuturesFromFile();
 
-        if (futures && futures.instruments) {
-            const f = getInstrument(futures.instruments, figi);
+            if (futures && futures.instruments) {
+                const f = getInstrument(futures.instruments, figi);
 
-            if (f) {
-                return f;
+                if (f) {
+                    return f;
+                }
             }
-        }
 
-        const { shares } = getSharesFromFile();
+            const { shares } = getSharesFromFile();
 
-        if (shares && shares.instruments) {
-            const s = getInstrument(shares.instruments, figi);
+            if (shares && shares.instruments) {
+                const s = getInstrument(shares.instruments, figi);
 
-            if (s) {
-                return s;
+                if (s) {
+                    return s;
+                }
             }
-        }
 
-        const { etfs } = getEtfsFromFile();
+            const { etfs } = getEtfsFromFile();
 
-        if (etfs && etfs.instruments) {
-            const e = getInstrument(etfs.instruments, figi);
+            if (etfs && etfs.instruments) {
+                const e = getInstrument(etfs.instruments, figi);
 
-            if (e) {
-                return e;
+                if (e) {
+                    return e;
+                }
             }
+        } catch (err) {
+            logger(0, err);
         }
     };
 

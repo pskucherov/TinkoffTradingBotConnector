@@ -12,6 +12,7 @@ const TConnector = undefined;
 // const { TConnector } = require('tconnector/tconnector');
 const { accountsRequest } = require('./modules/accounts');
 const { portfolioConnector } = require('./modules/robotConnector/bulkportfolio');
+const { syncStartedRobot } = require('./modules/robotConnector/tinkoffApi');
 
 // const { pinRequest } = require('./modules/pin');
 
@@ -36,7 +37,7 @@ try {
         // TODO: сохранять токен из запроса без вотчинга файла.
         chokidar
             .watch([config.files.tokens, config.files.pin])
-            .on('all', () => {
+            .on('all', async (a, b, c) => {
                 require('./modules/users');
                 require('./modules/server');
 
@@ -55,6 +56,8 @@ try {
                             prepareServer(sdk);
                             robotConnector(sdk, bots);
                             portfolioConnector(sdk, bots);
+
+                            await syncStartedRobot(sdk, bots);
                         } else if (brokerId === 'FINAM' && typeof TConnector !== 'undefined' && (oldBroderId !== brokerId || oldToken !== token)) {
                             if (sdk.sdk) {
                                 sdk.sdk.disconnect();

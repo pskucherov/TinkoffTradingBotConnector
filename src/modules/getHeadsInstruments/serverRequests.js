@@ -27,27 +27,31 @@ try {
             return;
         }
 
-        if (sdk.sdk) {
-            prepared = true;
+        try {
+            if (sdk.sdk) {
+                prepared = true;
 
-            // TODO: порефакторить в единый метод.
-            const futures = await getFutures(sdk.sdk);
+                // TODO: порефакторить в единый метод.
+                const futures = await getFutures(sdk.sdk);
 
-            futures && futures.updateDate && logger(0, 'Дата обновления списка фьючерсов: ' + futures.updateDate);
+                futures && futures.updateDate && logger(0, 'Дата обновления списка фьючерсов: ' + futures.updateDate);
 
-            const shares = await getShares(sdk.sdk);
+                const shares = await getShares(sdk.sdk);
 
-            shares && shares.updateDate && logger(0, 'Дата обновления списка акций: ' + shares.updateDate);
+                shares && shares.updateDate && logger(0, 'Дата обновления списка акций: ' + shares.updateDate);
 
-            const etfs = await getEtfs(sdk.sdk);
+                const etfs = await getEtfs(sdk.sdk);
 
-            etfs && etfs.updateDate && logger(0, 'Дата обновления списка etf: ' + etfs.updateDate);
+                etfs && etfs.updateDate && logger(0, 'Дата обновления списка etf: ' + etfs.updateDate);
 
-            // CRUD аккаунтов. Здесь вместо sdk передаём весь объект,
-            // а содержимое берём каждый раз при запросе.
-            accountsRequest(sdk);
-        } else {
-            logger(0, 'Укажите token для старта сервера.');
+                // CRUD аккаунтов. Здесь вместо sdk передаём весь объект,
+                // а содержимое берём каждый раз при запросе.
+                accountsRequest(sdk);
+            } else {
+                logger(0, 'Укажите token для старта сервера.');
+            }
+        } catch (err) {
+            logger(0, err);
         }
     };
 
