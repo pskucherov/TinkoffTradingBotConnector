@@ -38,6 +38,11 @@ const sdkLogger = (meta, error, descr) => {
 
     console.log(meta, error, descr);
 
+    // No connection established
+    if (Number(error?.code) === 14) {
+        throw new Error(error);
+    }
+
     return logger(1, err);
 };
 
