@@ -3,6 +3,7 @@ const { app } = require('../server');
 const { logger, sdkLogger } = require('../logger');
 const fs = require('fs');
 
+const config = require('../../config');
 const { getCandles, getCachedOrderBook, getRobotStateCachePath, getFigiData, getTradingSchedules, getFinamCandles } = require('../getHeadsInstruments');
 const { getFromMorning, getToEvening } = require('../utils');
 const { getSelectedToken } = require('../tokens');
@@ -452,6 +453,69 @@ try {
                 tickerInfo: robotStarted.robot.getTickerInfo(),
                 type: robotStarted.type,
             });
+        }
+
+        return res.status(404).end();
+    });
+
+    /**
+     * Получает список файлов с логами работы робота и сортирует их в порядке убывания даты создания.
+     */
+    const getLogsFiles = (bots, name, accountId, date, figi) => {
+        return (bots[name].getLogFiles(name, accountId, figi, new Date(date).getTime()))
+            .sort((a, b) => {
+                return a > b ? -1 : a === b ? 0 : 1;
+            });
+    };
+
+    app.get('/robots/logs/last/:figi', async (req, res) => {
+        const {
+            name,
+            accountId,
+            date,
+        } = req.query;
+
+        const { figi } = req.params;
+
+        if (name && bots[name]) {
+            const logs = getLogsFiles(bots, name, accountId, date, figi).slice(0, 2);
+            const figiData = {};
+
+            const answ = await logs.reduce(async (prev, l) => {
+                const log = bots[name].getLogs(name, accountId, figi, l);
+
+                prev[new Date(l).toLocaleString('ru', config.dateOptions)] = log;
+
+                await log.forEach(async cur => {
+                    if (cur.figi && !figiData[cur.figi]) {
+                        figiData[cur.figi] = await getFigiData(cur.figi);
+                    }
+                });
+
+                return prev;
+            }, {});
+
+            return res.json([answ, figiData]);
+        }
+
+        return res.status(404).end();
+    });
+
+    app.get('/robots/logs/files/:figi', async (req, res) => {
+        const {
+            name,
+            accountId,
+            date,
+        } = req.query;
+
+        const { figi } = req.params;
+
+        if (name && bots[name]) {
+            const logs = await getLogsFiles(bots, name, accountId, date, figi);
+
+            if (logs) {
+                return res.json(logs);
+            }
         }
 
         return res.status(404).end();
