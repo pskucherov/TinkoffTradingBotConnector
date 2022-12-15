@@ -137,6 +137,12 @@ const startRobot = async (sdkObj, botLib, isSandbox, figi, reqQuery, needSave = 
         } catch (e) { logger(1, e) }
     };
 
+    const getTickerInfo = figi => {
+        const splittedFigi = Array.isArray(figi) ? figi : figi.split(',');
+
+        return splittedFigi.map(f => getFigiData(f)).filter(f => Boolean(f));
+    };
+
     const orderBookSubscribe = () => {
         try {
             function getCreateSubscriptionOrderBookRequest(figi) {
@@ -211,6 +217,7 @@ const startRobot = async (sdkObj, botLib, isSandbox, figi, reqQuery, needSave = 
                     postOrder,
                     getOrderState,
                     cancelOrder,
+                    getTickerInfo,
                     getOrders: async (accountId, getSandboxPortfolio, isSandbox) => {
                         return await getOrders(accountId, getSandboxPortfolio, isSandbox, orders);
                     },
@@ -254,14 +261,8 @@ const startRobot = async (sdkObj, botLib, isSandbox, figi, reqQuery, needSave = 
                 saveStartedRobot(accountId, name, isSandbox, figi, reqQuery);
             }
 
-            let tickerInfo;
+            const tickerInfo = getTickerInfo(figi);
             const splittedFigi = Array.isArray(figi) ? figi : figi.split(',');
-
-            if (splittedFigi.length === 1) {
-                tickerInfo = getFigiData(figi);
-            } else {
-                tickerInfo = splittedFigi.map(f => getFigiData(f)).filter(f => Boolean(f));
-            }
 
             if (backtest) {
                 await robot.setBacktestState(0, interval,
