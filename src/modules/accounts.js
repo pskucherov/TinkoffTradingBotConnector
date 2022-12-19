@@ -3,6 +3,10 @@ const { app } = require('./server');
 const { logger } = require('./logger');
 const { addAccountIdToToken, getSelectedToken } = require('./tokens');
 
+const config = require('../config.js');
+
+const fs = require('fs');
+
 /**
  * Получить расписание торгов.
  *
@@ -147,6 +151,77 @@ const accountsRequest = sdkObj => {
             return res.json({ accountId: token.accountId });
         } catch (error) {
             logger(0, error, res);
+        }
+    });
+
+    app.get('/getbrokerreport', async (req, res) => {
+        const { sdk } = sdkObj;
+        const { accountId, isSandbox } = getSelectedToken(1);
+
+        if (!accountId) {
+            return res.status(404).end();
+        }
+
+        const today = new Date().toISOString();
+        let week = new Date();
+
+        week.setDate(week.getDate() - 15);
+        week = week.toISOString();
+
+        try {
+            const brokerReport = await(isSandbox ? sdk.sandbox.getBrokerReport : sdk.operations.getBrokerReport)({
+                generateBrokerReportRequest: {
+                    accountId,
+                    from: new Date(week),
+                    to: new Date(today),
+                },
+            });
+
+            const taskId = await brokerReport.generateBrokerReportResponse?.taskId;
+            const fileName = config.files.brokerReport;
+
+            if (taskId) {
+                const interval = setInterval(async () => {
+                    let q;
+
+                    try {
+                        q = await (isSandbox ? sdk.sandbox.getBrokerReport : sdk.operations.getBrokerReport)({
+                            getBrokerReportRequest: {
+                                taskId: taskId,
+                            },
+                        });
+                    } catch (error) {}
+                    if (q) {
+                        try {
+                            const content = JSON.stringify(q);
+
+                            fs.writeFile(fileName, content, function(error) {
+                                if (error) {
+                                    logger(0, error, res);
+                                }
+                            });
+                        } catch (error) {}
+
+                        clearInterval(interval);
+
+                        return res.json(q);
+                    }
+                }, 5000);
+            } else {
+                let data;
+
+                try {
+                    if (fs.existsSync(fileName)) {
+                        data = fs.readFileSync(fileName);
+
+                        return res.send(data);
+                    }
+                } catch (error) {
+                    logger(0, error, res);
+                }
+            }
+        } catch (error) {
+            logger(1, error, res);
         }
     });
 };
