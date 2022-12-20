@@ -478,19 +478,26 @@ try {
         const { figi } = req.params;
 
         if (name && bots[name]) {
-            const logs = getLogsFiles(bots, name, accountId, date, figi).slice(0, 2);
+            const logs = getLogsFiles(bots, name, accountId, date, figi)
+                .filter(l => Boolean(l)).slice(0, 2);
             const figiData = {};
 
             const answ = await logs.reduce(async (prev, l) => {
                 const log = bots[name].getLogs(name, accountId, figi, l);
 
+                if (!log || !log.length) {
+                    return prev;
+                }
+
                 prev[new Date(l).toLocaleString('ru', config.dateOptions)] = log;
 
-                await log.forEach(async cur => {
-                    if (cur.figi && !figiData[cur.figi]) {
-                        figiData[cur.figi] = await getFigiData(cur.figi);
-                    }
-                });
+                await Promise.all(
+                    log.map(async cur => {
+                        if (cur.figi && !figiData[cur.figi]) {
+                            figiData[cur.figi] = await getFigiData(cur.figi);
+                        }
+                    }),
+                );
 
                 return prev;
             }, {});

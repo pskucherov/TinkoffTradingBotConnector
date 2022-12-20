@@ -154,7 +154,7 @@ const accountsRequest = sdkObj => {
         }
     });
 
-    app.get('/getbrokerreport', async (req, res) => {
+    app.get('/getbrokerreport', async (req, res) => { // eslint-disable-line
         const { sdk } = sdkObj;
         const { accountId, isSandbox } = getSelectedToken(1);
 
@@ -165,11 +165,12 @@ const accountsRequest = sdkObj => {
         const today = new Date().toISOString();
         let week = new Date();
 
-        week.setDate(week.getDate() - 15);
+        week.setDate(week.getDate() - 30);
         week = week.toISOString();
 
         try {
-            const brokerReport = await(isSandbox ? sdk.sandbox.getBrokerReport : sdk.operations.getBrokerReport)({
+            const brokerReport = await(isSandbox ? sdk.sandbox.getBrokerReport :
+                sdk.operations.getBrokerReport)({
                 generateBrokerReportRequest: {
                     accountId,
                     from: new Date(week),
@@ -190,9 +191,7 @@ const accountsRequest = sdkObj => {
                                 taskId: taskId,
                             },
                         });
-                    } catch (error) {}
-                    if (q) {
-                        try {
+                        if (q) {
                             const content = JSON.stringify(q);
 
                             fs.writeFile(fileName, content, function(error) {
@@ -200,11 +199,15 @@ const accountsRequest = sdkObj => {
                                     logger(0, error, res);
                                 }
                             });
-                        } catch (error) {}
 
-                        clearInterval(interval);
+                            clearInterval(interval);
 
-                        return res.json(q);
+                            return res.json(q);
+                        }
+                    } catch (error) {
+                        if (fs.existsSync(fileName)) {
+                            return res.send(fs.readFileSync(fileName).toString());
+                        }
                     }
                 }, 5000);
             } else {
@@ -212,9 +215,11 @@ const accountsRequest = sdkObj => {
 
                 try {
                     if (fs.existsSync(fileName)) {
-                        data = fs.readFileSync(fileName);
+                        data = fs.readFileSync(fileName).toString();
 
                         return res.send(data);
+                    } else {
+                        return res.status(404).end();
                     }
                 } catch (error) {
                     logger(0, error, res);
