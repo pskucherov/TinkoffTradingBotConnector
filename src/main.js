@@ -1,3 +1,5 @@
+process.setMaxListeners(0);
+
 const path = require('path');
 const chokidar = require('chokidar');
 const configFile = path.join(__dirname, './config.js');

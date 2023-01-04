@@ -4,8 +4,10 @@ const { logger } = require('./logger');
 const { addAccountIdToToken, getSelectedToken } = require('./tokens');
 
 const config = require('../config.js');
+const path = require('path');
 
 const fs = require('fs');
+const { dateOptions } = require('../config.js');
 
 /**
  * Получить расписание торгов.
@@ -162,28 +164,34 @@ const accountsRequest = sdkObj => {
             return res.status(404).end();
         }
 
-        const today = new Date().toISOString();
-        let week = new Date();
+        const today = new Date();
+        const week = new Date();
 
         week.setDate(week.getDate() - 30);
-        week = week.toISOString();
 
         try {
             const brokerReport = await(isSandbox ? sdk.sandbox.getBrokerReport :
                 sdk.operations.getBrokerReport)({
                 generateBrokerReportRequest: {
                     accountId,
-                    from: new Date(week),
-                    to: new Date(today),
+                    from: new Date(week.toISOString()),
+                    to: today,
                 },
             });
 
             const taskId = await brokerReport.generateBrokerReportResponse?.taskId;
-            const fileName = config.files.brokerReport;
+            const fileName = path.join(config.files.brokerReportDir, `${week.toLocaleString('ru', dateOptions)}-${today.toLocaleString('ru', dateOptions)}.json`);
+            let errorIndex = 0;
 
             if (taskId) {
                 const interval = setInterval(async () => {
                     let q;
+
+                    if (fs.existsSync(fileName)) {
+                        clearInterval(interval);
+
+                        return res.send(fs.readFileSync(fileName).toString());
+                    }
 
                     try {
                         q = await (isSandbox ? sdk.sandbox.getBrokerReport : sdk.operations.getBrokerReport)({
@@ -191,6 +199,7 @@ const accountsRequest = sdkObj => {
                                 taskId: taskId,
                             },
                         });
+
                         if (q) {
                             const content = JSON.stringify(q);
 
@@ -203,10 +212,18 @@ const accountsRequest = sdkObj => {
                             clearInterval(interval);
 
                             return res.json(q);
+                        } else {
+                            clearInterval(interval);
+
+                            return res.json();
                         }
                     } catch (error) {
-                        if (fs.existsSync(fileName)) {
-                            return res.send(fs.readFileSync(fileName).toString());
+                        ++errorIndex;
+                        if (errorIndex > 1000) {
+                            logger(0, error, res);
+                            clearInterval(interval);
+
+                            return;
                         }
                     }
                 }, 5000);
